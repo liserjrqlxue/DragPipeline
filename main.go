@@ -63,7 +63,7 @@ func main() {
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
 	os.MkdirAll(*workdir, 0755)
 	for _, item := range inputInfo {
-		sampleID := item["sampeID"]
+		sampleID := item["sampleID"]
 		os.MkdirAll(filepath.Join(*workdir, sampleID), 0755)
 	}
 	var sampleInfo = inputInfo[0]
