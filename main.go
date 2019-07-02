@@ -54,6 +54,8 @@ type Task struct {
 }
 
 var sampleDirList = []string{
+	"raw",
+	"filter",
 	"bwa",
 	"shell",
 }
