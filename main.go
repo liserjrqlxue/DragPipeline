@@ -45,6 +45,8 @@ var (
 
 type Task struct {
 	TaskName string
+	TaskType string
+	TaskArgs []string
 	TaskInfo map[string]string
 	TaskFrom []*Task
 	TaskTo   []*Task
@@ -91,15 +93,37 @@ func main() {
 	}
 
 	for _, item := range cfgInfo {
-		name := item["name"]
 		task := Task{
-			TaskName: name,
+			TaskName: item["name"],
 			TaskInfo: item,
+			TaskType: item["type"],
+			TaskArgs: strings.Split(item["args"], ","),
 			Script:   filepath.Join(*workdir, sampleID, "shell", item["name"]+".sh"),
 		}
-		taskList[name] = &task
-		createShell(task.Script, filepath.Join(*localpath, "script", task.TaskName+".sh"),
-			*workdir, *localpath, sampleID, sampleInfo["lane"], sampleInfo["fq1"], sampleInfo["fq2"])
+		taskList[task.TaskName] = &task
+		var appendArgs []string
+		appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
+		switch task.TaskType {
+		case "lane":
+			for _, arg := range task.TaskArgs {
+				switch arg {
+				case "laneName":
+					appendArgs = append(appendArgs, sampleInfo["lane"])
+				case "fq1":
+					appendArgs = append(appendArgs, sampleInfo["fq1"])
+				case "fq2":
+					appendArgs = append(appendArgs, sampleInfo["fq2"])
+				}
+			}
+		case "sample":
+			for _, arg := range task.TaskArgs {
+				switch arg {
+				case "laneName":
+					appendArgs = append(appendArgs, sampleInfo["lane"])
+				}
+			}
+		}
+		createShell(task.Script, filepath.Join(*localpath, "script", task.TaskName+".sh"), appendArgs...)
 	}
 
 	for taskName, item := range taskList {
