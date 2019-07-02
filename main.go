@@ -18,7 +18,7 @@ var (
 var (
 	input = flag.String(
 		"input",
-		"input.list",
+		filepath.Join(exPath, "test", "allSteps.tsv"),
 		"input list",
 	)
 	workdir = flag.String(
@@ -27,9 +27,9 @@ var (
 		"workdir",
 	)
 	localpath = flag.String(
-		"localpath",
-		exPath,
-		"path",
+		"local",
+		filepath.Join(exPath, "..", "WESIM", "pipeline"),
+		"local path",
 	)
 	cfg = flag.String(
 		"cfg",
