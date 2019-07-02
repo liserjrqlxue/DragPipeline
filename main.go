@@ -18,7 +18,7 @@ var (
 var (
 	input = flag.String(
 		"input",
-		filepath.Join(exPath, "test", "allSteps.tsv"),
+		filepath.Join(exPath, "test", "input.list"),
 		"input list",
 	)
 	workdir = flag.String(
@@ -138,7 +138,7 @@ func main() {
 				simple_util.SGEsubmmit(i, []string{item.Script}, oldChan, newChan, nil)
 				jid = <-newChan
 			default:
-				simple_util.CheckErr(simple_util.RunCmd("base", item.Script))
+				simple_util.CheckErr(simple_util.RunCmd("bash", item.Script))
 			}
 
 			for _, task := range item.TaskTo {
