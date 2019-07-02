@@ -69,7 +69,7 @@ func main() {
 	}
 
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
-	createDir(*workdir, laneDirList, inputInfo)
+	createDir(*workdir, sampleDirList, laneDirList, inputInfo)
 
 	var sampleInfo = inputInfo[0]
 	sampleInfo["fq1"] = filepath.Join(sampleInfo["rawDir"], sampleInfo["read1"])
