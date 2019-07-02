@@ -89,6 +89,8 @@ func main() {
 			Script:   filepath.Join(*workdir, sampleID, item["name"]+".sh"),
 		}
 		taskList[name] = &task
+		createShell(task.Script, filepath.Join(*localpath, "script", task.TaskName+".sh"),
+			*workdir, *localpath, sampleID, sampleInfo["rawDir"], sampleInfo["read1"], sampleInfo["read2"])
 	}
 
 	for taskName, item := range taskList {
