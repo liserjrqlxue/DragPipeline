@@ -53,6 +53,14 @@ type Task struct {
 	Script   string
 }
 
+var sampleDirList = []string{
+	"bwa",
+	"shell",
+}
+var laneDirList = []string{
+	"filter",
+}
+
 func main() {
 	flag.Parse()
 	if *input == "" {
@@ -61,12 +69,11 @@ func main() {
 	}
 
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
-	os.MkdirAll(*workdir, 0755)
-	for _, item := range inputInfo {
-		sampleID := item["sampleID"]
-		os.MkdirAll(filepath.Join(*workdir, sampleID), 0755)
-	}
+	createDir(*workdir, laneDirList, inputInfo)
+
 	var sampleInfo = inputInfo[0]
+	sampleInfo["fq1"] = filepath.Join(sampleInfo["rawDir"], sampleInfo["read1"])
+	sampleInfo["fq2"] = filepath.Join(sampleInfo["rawDir"], sampleInfo["read2"])
 	var sampleID = sampleInfo["sampleID"]
 
 	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
@@ -86,11 +93,11 @@ func main() {
 		task := Task{
 			TaskName: name,
 			TaskInfo: item,
-			Script:   filepath.Join(*workdir, sampleID, item["name"]+".sh"),
+			Script:   filepath.Join(*workdir, sampleID, "shell", item["name"]+".sh"),
 		}
 		taskList[name] = &task
 		createShell(task.Script, filepath.Join(*localpath, "script", task.TaskName+".sh"),
-			*workdir, *localpath, sampleID, sampleInfo["rawDir"], sampleInfo["read1"], sampleInfo["read2"])
+			*workdir, *localpath, sampleID, sampleInfo["lane"], sampleInfo["fq1"], sampleInfo["fq2"])
 	}
 
 	for taskName, item := range taskList {
@@ -134,11 +141,8 @@ func main() {
 			var jid = taskName
 			switch *mode {
 			case "sge":
-				oldChan := make(chan string)
-				oldChan <- strings.Join(froms, ",")
-				newChan := make(chan string)
-				simple_util.SGEsubmmit(i, []string{item.Script}, oldChan, newChan, nil)
-				jid = <-newChan
+				hjid := strings.Join(froms, ",")
+				jid = simple_util.SGEsubmmit(i, []string{item.Script}, hjid, nil)
 			default:
 				simple_util.CheckErr(simple_util.RunCmd("bash", item.Script))
 			}
