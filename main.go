@@ -113,6 +113,8 @@ func main() {
 					appendArgs = append(appendArgs, sampleInfo["fq1"])
 				case "fq2":
 					appendArgs = append(appendArgs, sampleInfo["fq2"])
+				default:
+					appendArgs = append(appendArgs, sampleInfo[arg])
 				}
 			}
 		case "sample":
@@ -163,7 +165,7 @@ func main() {
 				fromInfo := <-*ch
 				froms = append(froms, fromInfo)
 			}
-			log.Printf("Run task[%s],from[%+v]", taskName, froms)
+			log.Printf("Run task[%s],after%+v:%s", taskName, froms, item.Script)
 			var jid = taskName
 			switch *mode {
 			case "sge":
