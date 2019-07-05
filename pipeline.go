@@ -17,10 +17,8 @@ func createShell(fileName, script string, args ...string) {
 	simple_util.CheckErr(err)
 }
 
-func createDir(workdir string, sampleDirList, laneDirList []string, sampleInfo []map[string]string) {
-	for _, item := range sampleInfo {
-		var sampleID = item["sampleID"]
-		var laneCode = item["lane"]
+func createDir(workdir string, sampleDirList, sampleList []string) {
+	for _, sampleID := range sampleList {
 		for _, subdir := range sampleDirList {
 			simple_util.CheckErr(
 				os.MkdirAll(
@@ -28,19 +26,6 @@ func createDir(workdir string, sampleDirList, laneDirList []string, sampleInfo [
 						workdir,
 						sampleID,
 						subdir,
-					),
-					0755,
-				),
-			)
-		}
-		for _, subdir := range laneDirList {
-			simple_util.CheckErr(
-				os.MkdirAll(
-					filepath.Join(
-						workdir,
-						sampleID,
-						subdir,
-						laneCode,
 					),
 					0755,
 				),

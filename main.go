@@ -28,7 +28,7 @@ var (
 	)
 	localpath = flag.String(
 		"local",
-		filepath.Join(exPath, "..", "WESIM", "pipeline"),
+		exPath,
 		"local path",
 	)
 	cfg = flag.String(
@@ -44,15 +44,17 @@ var (
 )
 
 type Task struct {
-	TaskName string
-	TaskType string
-	TaskArgs []string
-	TaskInfo map[string]string
-	TaskFrom []*Task
-	TaskTo   []*Task
-	ChanFrom map[string]*chan string
-	ChanTo   map[string]*chan string
-	Script   string
+	TaskName   string
+	TaskType   string
+	TaskScript string
+	TaskArgs   []string
+	TaskInfo   map[string]string
+	TaskToChan map[string]map[string]*chan string // toTask sample chan
+	TaskFrom   []*Task
+	TaskTo     []*Task
+	ChanFrom   map[string]*chan string
+	ChanTo     map[string]*chan string
+	Scripts    map[string]string
 }
 
 var sampleDirList = []string{
@@ -60,9 +62,6 @@ var sampleDirList = []string{
 	"filter",
 	"bwa",
 	"shell",
-}
-var laneDirList = []string{
-	"filter",
 }
 
 func main() {
@@ -73,59 +72,59 @@ func main() {
 	}
 
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
-	createDir(*workdir, sampleDirList, laneDirList, inputInfo)
-
-	var sampleInfo = inputInfo[0]
-	sampleInfo["fq1"] = filepath.Join(sampleInfo["rawDir"], sampleInfo["read1"])
-	sampleInfo["fq2"] = filepath.Join(sampleInfo["rawDir"], sampleInfo["read2"])
-	var sampleID = sampleInfo["sampleID"]
+	var SampleInfo = make(map[string]map[string]string)
+	var sampleList []string
+	for _, item := range inputInfo {
+		sampleID := item["sampleID"]
+		sampleList = append(sampleList, sampleID)
+		item["fq1"] = filepath.Join(item["rawDir"], item["read1"])
+		item["fq2"] = filepath.Join(item["rawDir"], item["read2"])
+		SampleInfo[sampleID] = item
+	}
+	createDir(*workdir, sampleDirList, sampleList)
 
 	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
 
 	var taskList = make(map[string]*Task)
 	var startTask = Task{
-		TaskName: "Start",
-		ChanTo:   make(map[string]*chan string),
+		TaskName:   "Start",
+		ChanTo:     make(map[string]*chan string),
+		TaskToChan: make(map[string]map[string]*chan string),
 	}
 	var endTask = Task{
-		TaskName: "End",
-		ChanFrom: make(map[string]*chan string),
+		TaskName:   "End",
+		TaskToChan: make(map[string]map[string]*chan string),
+		ChanFrom:   make(map[string]*chan string),
 	}
 
 	for _, item := range cfgInfo {
 		task := Task{
-			TaskName: item["name"],
-			TaskInfo: item,
-			TaskType: item["type"],
-			TaskArgs: strings.Split(item["args"], ","),
-			Script:   filepath.Join(*workdir, sampleID, "shell", item["name"]+".sh"),
+			TaskName:   item["name"],
+			TaskInfo:   item,
+			TaskType:   item["type"],
+			TaskScript: filepath.Join(*localpath, "script", item["name"]+".sh"),
+			TaskArgs:   strings.Split(item["args"], ","),
+			TaskToChan: make(map[string]map[string]*chan string),
+			Scripts:    make(map[string]string),
 		}
 		taskList[task.TaskName] = &task
-		var appendArgs []string
-		appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
+		// create scripts
 		switch task.TaskType {
-		case "lane":
-			for _, arg := range task.TaskArgs {
-				switch arg {
-				case "laneName":
-					appendArgs = append(appendArgs, sampleInfo["lane"])
-				case "fq1":
-					appendArgs = append(appendArgs, sampleInfo["fq1"])
-				case "fq2":
-					appendArgs = append(appendArgs, sampleInfo["fq2"])
-				default:
-					appendArgs = append(appendArgs, sampleInfo[arg])
-				}
-			}
 		case "sample":
-			for _, arg := range task.TaskArgs {
-				switch arg {
-				case "laneName":
-					appendArgs = append(appendArgs, sampleInfo["lane"])
+			for sampleID, sampleInfo := range SampleInfo {
+				script := filepath.Join(*workdir, sampleID, "shell", item["name"]+".sh")
+				task.Scripts[sampleID] = script
+				var appendArgs []string
+				appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
+				for _, arg := range task.TaskArgs {
+					switch arg {
+					default:
+						appendArgs = append(appendArgs, sampleInfo[arg])
+					}
 				}
+				createShell(script, task.TaskScript, appendArgs...)
 			}
 		}
-		createShell(task.Script, filepath.Join(*localpath, "script", task.TaskName+".sh"), appendArgs...)
 	}
 
 	for taskName, item := range taskList {
@@ -137,12 +136,30 @@ func main() {
 				taskList[from].TaskTo = append(taskList[from].TaskTo, item)
 				ch := make(chan string)
 				chanMap[from] = &ch
+
+				sampleListChan := make(map[string]*chan string)
+				for sampleID := range SampleInfo {
+					ch := make(chan string)
+					sampleListChan[sampleID] = &ch
+				}
+				fromTask := taskList[from]
+				fromTask.TaskToChan[taskName] = sampleListChan
+
 			}
 		} else {
 			item.TaskFrom = append(item.TaskFrom, &startTask)
 			ch := make(chan string)
 			chanMap["Start"] = &ch
 			startTask.ChanTo[taskName] = &ch
+
+			sampleListChan := make(map[string]*chan string)
+			for sampleID := range SampleInfo {
+				ch := make(chan string)
+				sampleListChan[sampleID] = &ch
+			}
+			startTask.TaskToChan[taskName] = sampleListChan
+			log.Printf("%+v", item)
+			log.Printf("%+v", startTask)
 		}
 		item.ChanFrom = chanMap
 	}
@@ -153,41 +170,65 @@ func main() {
 
 			ch := make(chan string)
 			endTask.ChanFrom[taskName] = &ch
+
+			endTask.TaskFrom = append(endTask.TaskFrom, item)
+			sampleListChan := make(map[string]*chan string)
+			for sampleID := range SampleInfo {
+				ch := make(chan string)
+				sampleListChan[sampleID] = &ch
+			}
+			item.TaskToChan[endTask.TaskName] = sampleListChan
 		}
 	}
 
 	var i = 1
 	// run
 	for taskName, item := range taskList {
-		go func(i int, taskName string, item *Task) {
-			var froms []string
-			for _, ch := range item.ChanFrom {
-				fromInfo := <-*ch
-				froms = append(froms, fromInfo)
+		switch item.TaskType {
+		case "sample":
+			for sampleID := range SampleInfo {
+				go func(i int, sampleID, taskName string, item *Task) {
+					var froms []string
+					for _, fromTask := range item.TaskFrom {
+						ch := fromTask.TaskToChan[taskName][sampleID]
+						fromInfo := <-*ch
+						froms = append(froms, fromInfo)
+					}
+					var jid = taskName + ":" + sampleID
+					log.Printf("Task[%-7s:%s] <- {%s}", taskName, sampleID, strings.Join(froms, ","))
+					switch *mode {
+					case "sge":
+						var hjid = strings.Join(froms, ",")
+						jid = simple_util.SGEsubmit(i, []string{item.Scripts[sampleID]}, hjid, nil)
+					default:
+						log.Printf("Run Task[%-7s:%s]:%s", taskName, sampleID, item.Scripts[sampleID])
+						simple_util.CheckErr(simple_util.RunCmd("bash", item.Scripts[sampleID]))
+					}
+					for _, chanMap := range item.TaskToChan {
+						log.Printf("Task[%-7s:%s] -> %s", taskName, sampleID, jid)
+						*chanMap[sampleID] <- jid
+					}
+				}(i, sampleID, taskName, item)
 			}
-			log.Printf("Run task[%s],after%+v:%s", taskName, froms, item.Script)
-			var jid = taskName
-			switch *mode {
-			case "sge":
-				hjid := strings.Join(froms, ",")
-				jid = simple_util.SGEsubmmit(i, []string{item.Script}, hjid, nil)
-			default:
-				simple_util.CheckErr(simple_util.RunCmd("bash", item.Script))
-			}
-
-			for _, task := range item.TaskTo {
-				*task.ChanFrom[taskName] <- jid
-			}
-		}(i, taskName, item)
+		}
 	}
 
 	// start goroutine
-	for taskName, ch := range startTask.ChanTo {
-		log.Printf("Start task[%s}", taskName)
-		*ch <- ""
+	for taskName, chanMap := range startTask.TaskToChan {
+		log.Printf("%-7s -> Task[%-7s]", startTask.TaskName, taskName)
+		for sampleID := range chanMap {
+			ch := chanMap[sampleID]
+			log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", startTask.TaskName, sampleID, taskName, sampleID)
+			*ch <- ""
+		}
 	}
 	// wait goroutine end
-	for taskName, ch := range endTask.ChanFrom {
-		log.Printf("End task[%s]:%s", taskName, <-*ch)
+	for _, fromTask := range endTask.TaskFrom {
+		for taskName, chanMap := range fromTask.TaskToChan {
+			for sampleID := range chanMap {
+				log.Printf("Task[%-7s:%s] <- %s", taskName, sampleID, <-*chanMap[sampleID])
+			}
+		}
+		log.Printf("End <- Task[%-7s]", fromTask.TaskName)
 	}
 }
