@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -82,6 +83,10 @@ var sampleDirList = []string{
 	"shell",
 }
 
+var (
+	sep = regexp.MustCompile(`\s+`)
+)
+
 func main() {
 	flag.Parse()
 	if *input == "" {
@@ -136,6 +141,9 @@ func main() {
 			mem:        item["mem"],
 			thread:     item["thread"],
 			submitArgs: append(submitArgs, "-l", "vf="+item["mem"]+"G,p="+item["thread"], item["submitArgs"]),
+		}
+		if item["submitArgs"] != "" {
+			task.submitArgs = append(task.submitArgs, sep.Split(item["submitArgs"], -1)...)
 		}
 		taskList[task.TaskName] = &task
 		// create scripts
