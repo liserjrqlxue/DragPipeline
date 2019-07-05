@@ -130,10 +130,7 @@ func main() {
 		task := createTask(item, *localpath, submitArgs)
 		taskList[task.TaskName] = task
 		// create scripts
-		switch task.TaskType {
-		case "sample":
-			createSampleScripts(task, SampleInfo)
-		}
+		task.CreateScripts(SampleInfo)
 	}
 
 	// add prior to current TaskFrom and add current task to prior's TaskToChan
@@ -185,7 +182,7 @@ func main() {
 		switch task.TaskType {
 		case "sample":
 			for sampleID := range SampleInfo {
-				go runTask(sampleID, task)
+				go task.RunTask(sampleID)
 			}
 		}
 	}

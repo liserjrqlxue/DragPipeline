@@ -77,7 +77,7 @@ func (task *Task) WaitEnd() {
 	}
 }
 
-func runTask(sampleID string, task *Task) {
+func (task *Task) RunTask(sampleID string) {
 	var froms []string
 	for _, fromTask := range task.TaskFrom {
 		ch := fromTask.TaskToChan[task.TaskName][sampleID]
@@ -100,7 +100,14 @@ func runTask(sampleID string, task *Task) {
 	}
 }
 
-func createSampleScripts(task *Task, SampleInfo map[string]map[string]string) {
+func (task *Task) CreateScripts(SampleInfo map[string]map[string]string) {
+	switch task.TaskType {
+	case "sample":
+		task.createSampleScripts(SampleInfo)
+	}
+}
+
+func (task *Task) createSampleScripts(SampleInfo map[string]map[string]string) {
 	for sampleID, sampleInfo := range SampleInfo {
 		script := filepath.Join(*workdir, sampleID, "shell", task.TaskName+".sh")
 		task.Scripts[sampleID] = script
