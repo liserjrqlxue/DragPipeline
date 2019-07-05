@@ -67,7 +67,7 @@ type Task struct {
 	TaskInfo   map[string]string
 	TaskToChan map[string]map[string]*chan string // toTask sample chan
 	TaskFrom   []*Task
-	TaskTo     []*Task
+	First, End bool
 	Scripts    map[string]string
 	mem        string
 	thread     string
@@ -119,10 +119,12 @@ func main() {
 	var startTask = Task{
 		TaskName:   "Start",
 		TaskToChan: make(map[string]map[string]*chan string),
+		First:      true,
 	}
 	var endTask = Task{
 		TaskName:   "End",
 		TaskToChan: make(map[string]map[string]*chan string),
+		End:        true,
 	}
 
 	for _, item := range cfgInfo {
@@ -137,6 +139,7 @@ func main() {
 			mem:        item["mem"],
 			thread:     item["thread"],
 			submitArgs: append(submitArgs, "-l", "vf="+item["mem"]+"G,p="+item["thread"], item["submitArgs"]),
+			End:        true,
 		}
 		if item["submitArgs"] != "" {
 			task.submitArgs = append(task.submitArgs, sep.Split(item["submitArgs"], -1)...)
@@ -163,22 +166,18 @@ func main() {
 
 	for taskName, item := range taskList {
 		prior := item.TaskInfo["prior"]
-		chanMap := make(map[string]*chan string)
 		if prior != "" {
 			for _, from := range strings.Split(prior, ",") {
-				item.TaskFrom = append(item.TaskFrom, taskList[from])
-				taskList[from].TaskTo = append(taskList[from].TaskTo, item)
-				ch := make(chan string)
-				chanMap[from] = &ch
+				fromTask := taskList[from]
+				item.TaskFrom = append(item.TaskFrom, fromTask)
+				fromTask.End = false
 
 				sampleListChan := make(map[string]*chan string)
 				for sampleID := range SampleInfo {
 					ch := make(chan string)
 					sampleListChan[sampleID] = &ch
 				}
-				fromTask := taskList[from]
 				fromTask.TaskToChan[taskName] = sampleListChan
-
 			}
 		} else {
 			item.TaskFrom = append(item.TaskFrom, &startTask)
@@ -193,10 +192,10 @@ func main() {
 	}
 
 	for _, item := range taskList {
-		if item.TaskTo == nil {
-			item.TaskTo = append(item.TaskTo, &endTask)
-
+		if item.End {
 			endTask.TaskFrom = append(endTask.TaskFrom, item)
+			item.End = false
+
 			sampleListChan := make(map[string]*chan string)
 			for sampleID := range SampleInfo {
 				ch := make(chan string)
