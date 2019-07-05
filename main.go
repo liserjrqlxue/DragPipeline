@@ -238,21 +238,25 @@ func main() {
 	}
 
 	// start goroutine
-	for taskName, chanMap := range startTask.TaskToChan {
-		log.Printf("%-7s -> Task[%-7s]", startTask.TaskName, taskName)
-		for sampleID := range chanMap {
-			ch := chanMap[sampleID]
-			log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", startTask.TaskName, sampleID, taskName, sampleID)
-			*ch <- ""
-		}
-	}
-	// wait goroutine end
-	for _, fromTask := range endTask.TaskFrom {
-		for taskName, chanMap := range fromTask.TaskToChan {
+	/*
+		for taskName, chanMap := range startTask.TaskToChan {
+			log.Printf("%-7s -> Task[%-7s]", startTask.TaskName, taskName)
 			for sampleID := range chanMap {
-				log.Printf("Task[%-7s:%s] <- %s", taskName, sampleID, <-*chanMap[sampleID])
+				ch := chanMap[sampleID]
+				log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", startTask.TaskName, sampleID, taskName, sampleID)
+				*ch <- ""
 			}
+
+		// wait goroutine end
+		for _, fromTask := range endTask.TaskFrom {
+			for taskName, chanMap := range fromTask.TaskToChan {
+				for sampleID := range chanMap {
+					log.Printf("Task[%-7s:%s] <- %s", taskName, sampleID, <-*chanMap[sampleID])
+				}
+			}
+			log.Printf("%-7s <- Task[%-7s]", endTask.TaskName,fromTask.TaskName)
 		}
-		log.Printf("End <- Task[%-7s]", fromTask.TaskName)
-	}
+	*/
+	start(startTask)
+	waitEnd(endTask)
 }
