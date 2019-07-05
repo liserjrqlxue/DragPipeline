@@ -1,13 +1,12 @@
 name	mem	thread	type	prior	args
-filter	1	6	lane		laneName,fq1,fq2
-filStat	1	1	lane	filter	laneName
-bwaMem	8	8	lane	filter	laneName
-rmFQ	1	1	lane	bwaMem	laneName
+barcode	1	1	lane		laneName,fq1,fq2,barcode,pL,pR
+FastqQC	1	6	lane	barcode	laneName
+bwaMem	8	8	lane	FastqQC	laneName
 merge	1	8	sample	bwaMem	laneName
 SortSam	8	2	sample	merge
-dupMark	30	4	sample	SortSam
-FixMate	10	4	sample	dupMark
-RTC	10	4	sample	FixMate
+FixMate	10	4	sample	SortSam
+indxFix	10	1	sample	FixMate
+RTC	10	4	sample	indxFix
 IR	10	4	sample	RTC
 BQSR	8	4	sample	IR
 AppBQSR	2	2	sample	BQSR
