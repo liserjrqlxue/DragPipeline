@@ -68,7 +68,6 @@ type Task struct {
 	TaskToChan map[string]map[string]*chan string // toTask sample chan
 	TaskFrom   []*Task
 	TaskTo     []*Task
-	ChanFrom   map[string]*chan string
 	ChanTo     map[string]*chan string
 	Scripts    map[string]string
 	mem        string
@@ -126,7 +125,6 @@ func main() {
 	var endTask = Task{
 		TaskName:   "End",
 		TaskToChan: make(map[string]map[string]*chan string),
-		ChanFrom:   make(map[string]*chan string),
 	}
 
 	for _, item := range cfgInfo {
@@ -196,18 +194,12 @@ func main() {
 				sampleListChan[sampleID] = &ch
 			}
 			startTask.TaskToChan[taskName] = sampleListChan
-			log.Printf("%+v", item)
-			log.Printf("%+v", startTask)
 		}
-		item.ChanFrom = chanMap
 	}
 
-	for taskName, item := range taskList {
+	for _, item := range taskList {
 		if item.TaskTo == nil {
 			item.TaskTo = append(item.TaskTo, &endTask)
-
-			ch := make(chan string)
-			endTask.ChanFrom[taskName] = &ch
 
 			endTask.TaskFrom = append(endTask.TaskFrom, item)
 			sampleListChan := make(map[string]*chan string)
