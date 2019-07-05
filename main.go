@@ -147,22 +147,27 @@ func main() {
 		// create scripts
 		switch task.TaskType {
 		case "sample":
-			for sampleID, sampleInfo := range SampleInfo {
-				script := filepath.Join(*workdir, sampleID, "shell", item["name"]+".sh")
-				task.Scripts[sampleID] = script
-				var appendArgs []string
-				appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
-				for _, arg := range task.TaskArgs {
-					switch arg {
-					default:
-						appendArgs = append(appendArgs, sampleInfo[arg])
+			createSampleScripts(&task, SampleInfo)
+			/*
+				for sampleID, sampleInfo := range SampleInfo {
+					script := filepath.Join(*workdir, sampleID, "shell", task.TaskName+".sh")
+					task.Scripts[sampleID] = script
+					var appendArgs []string
+					appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
+					for _, arg := range task.TaskArgs {
+						switch arg {
+						default:
+							appendArgs = append(appendArgs, sampleInfo[arg])
+						}
 					}
+					createShell(script, task.TaskScript, appendArgs...)
 				}
-				createShell(script, task.TaskScript, appendArgs...)
-			}
+			*/
 		}
 	}
 
+	// add prior to current TaskFrom and add current task to prior's TaskToChan
+	// set startTask as prior of first tasks
 	for taskName, item := range taskList {
 		prior := item.TaskInfo["prior"]
 		if prior != "" {
@@ -190,6 +195,7 @@ func main() {
 		}
 	}
 
+	// set end task as prior of endTask
 	for _, item := range taskList {
 		if item.End {
 			endTask.TaskFrom = append(endTask.TaskFrom, item)
@@ -204,37 +210,12 @@ func main() {
 		}
 	}
 
-	//var i = 1
 	// run
-	for _, item := range taskList {
-		switch item.TaskType {
+	for _, task := range taskList {
+		switch task.TaskType {
 		case "sample":
 			for sampleID := range SampleInfo {
-				go runTask(sampleID, item)
-				/*
-					go func(i int, sampleID, taskName string, item *Task) {
-						var froms []string
-						for _, fromTask := range item.TaskFrom {
-							ch := fromTask.TaskToChan[taskName][sampleID]
-							fromInfo := <-*ch
-							froms = append(froms, fromInfo)
-						}
-						var jid = taskName + ":" + sampleID
-						log.Printf("Task[%-7s:%s] <- {%s}", taskName, sampleID, strings.Join(froms, ","))
-						switch *mode {
-						case "sge":
-							var hjid = strings.Join(froms, ",")
-							jid = simple_util.SGEsubmit([]string{item.Scripts[sampleID]}, hjid, item.submitArgs)
-						default:
-							log.Printf("Run Task[%-7s:%s]:%s", taskName, sampleID, item.Scripts[sampleID])
-							simple_util.CheckErr(simple_util.RunCmd("bash", item.Scripts[sampleID]))
-						}
-						for _, chanMap := range item.TaskToChan {
-							log.Printf("Task[%-7s:%s] -> %s", taskName, sampleID, jid)
-							*chanMap[sampleID] <- jid
-						}
-					}(i, sampleID, taskName, item)
-				*/
+				go runTask(sampleID, task)
 			}
 		}
 	}

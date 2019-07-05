@@ -79,3 +79,19 @@ func runTask(sampleID string, task *Task) {
 		*chanMap[sampleID] <- jid
 	}
 }
+
+func createSampleScripts(task *Task, SampleInfo map[string]map[string]string) {
+	for sampleID, sampleInfo := range SampleInfo {
+		script := filepath.Join(*workdir, sampleID, "shell", task.TaskName+".sh")
+		task.Scripts[sampleID] = script
+		var appendArgs []string
+		appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
+		for _, arg := range task.TaskArgs {
+			switch arg {
+			default:
+				appendArgs = append(appendArgs, sampleInfo[arg])
+			}
+		}
+		createShell(script, task.TaskScript, appendArgs...)
+	}
+}
