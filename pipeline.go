@@ -56,3 +56,26 @@ func waitEnd(task Task) {
 		log.Printf("%-7s <- Task[%-7s]", task.TaskName, fromTask.TaskName)
 	}
 }
+
+func runTask(sampleID string, task *Task) {
+	var froms []string
+	for _, fromTask := range task.TaskFrom {
+		ch := fromTask.TaskToChan[task.TaskName][sampleID]
+		fromInfo := <-*ch
+		froms = append(froms, fromInfo)
+	}
+	var jid = task.TaskName + ":" + sampleID
+	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, sampleID, strings.Join(froms, ","))
+	switch *mode {
+	case "sge":
+		var hjid = strings.Join(froms, ",")
+		jid = simple_util.SGEsubmit([]string{task.Scripts[sampleID]}, hjid, task.submitArgs)
+	default:
+		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, sampleID, task.Scripts[sampleID])
+		simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleID]))
+	}
+	for _, chanMap := range task.TaskToChan {
+		log.Printf("Task[%-7s:%s] -> %s", task.TaskName, sampleID, jid)
+		*chanMap[sampleID] <- jid
+	}
+}

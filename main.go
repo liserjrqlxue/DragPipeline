@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"github.com/liserjrqlxue/simple-util"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -205,58 +204,41 @@ func main() {
 		}
 	}
 
-	var i = 1
+	//var i = 1
 	// run
-	for taskName, item := range taskList {
+	for _, item := range taskList {
 		switch item.TaskType {
 		case "sample":
 			for sampleID := range SampleInfo {
-				go func(i int, sampleID, taskName string, item *Task) {
-					var froms []string
-					for _, fromTask := range item.TaskFrom {
-						ch := fromTask.TaskToChan[taskName][sampleID]
-						fromInfo := <-*ch
-						froms = append(froms, fromInfo)
-					}
-					var jid = taskName + ":" + sampleID
-					log.Printf("Task[%-7s:%s] <- {%s}", taskName, sampleID, strings.Join(froms, ","))
-					switch *mode {
-					case "sge":
-						var hjid = strings.Join(froms, ",")
-						jid = simple_util.SGEsubmit(i, []string{item.Scripts[sampleID]}, hjid, item.submitArgs)
-					default:
-						log.Printf("Run Task[%-7s:%s]:%s", taskName, sampleID, item.Scripts[sampleID])
-						simple_util.CheckErr(simple_util.RunCmd("bash", item.Scripts[sampleID]))
-					}
-					for _, chanMap := range item.TaskToChan {
-						log.Printf("Task[%-7s:%s] -> %s", taskName, sampleID, jid)
-						*chanMap[sampleID] <- jid
-					}
-				}(i, sampleID, taskName, item)
+				go runTask(sampleID, item)
+				/*
+					go func(i int, sampleID, taskName string, item *Task) {
+						var froms []string
+						for _, fromTask := range item.TaskFrom {
+							ch := fromTask.TaskToChan[taskName][sampleID]
+							fromInfo := <-*ch
+							froms = append(froms, fromInfo)
+						}
+						var jid = taskName + ":" + sampleID
+						log.Printf("Task[%-7s:%s] <- {%s}", taskName, sampleID, strings.Join(froms, ","))
+						switch *mode {
+						case "sge":
+							var hjid = strings.Join(froms, ",")
+							jid = simple_util.SGEsubmit([]string{item.Scripts[sampleID]}, hjid, item.submitArgs)
+						default:
+							log.Printf("Run Task[%-7s:%s]:%s", taskName, sampleID, item.Scripts[sampleID])
+							simple_util.CheckErr(simple_util.RunCmd("bash", item.Scripts[sampleID]))
+						}
+						for _, chanMap := range item.TaskToChan {
+							log.Printf("Task[%-7s:%s] -> %s", taskName, sampleID, jid)
+							*chanMap[sampleID] <- jid
+						}
+					}(i, sampleID, taskName, item)
+				*/
 			}
 		}
 	}
 
-	// start goroutine
-	/*
-		for taskName, chanMap := range startTask.TaskToChan {
-			log.Printf("%-7s -> Task[%-7s]", startTask.TaskName, taskName)
-			for sampleID := range chanMap {
-				ch := chanMap[sampleID]
-				log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", startTask.TaskName, sampleID, taskName, sampleID)
-				*ch <- ""
-			}
-
-		// wait goroutine end
-		for _, fromTask := range endTask.TaskFrom {
-			for taskName, chanMap := range fromTask.TaskToChan {
-				for sampleID := range chanMap {
-					log.Printf("Task[%-7s:%s] <- %s", taskName, sampleID, <-*chanMap[sampleID])
-				}
-			}
-			log.Printf("%-7s <- Task[%-7s]", endTask.TaskName,fromTask.TaskName)
-		}
-	*/
 	start(startTask)
 	waitEnd(endTask)
 }
