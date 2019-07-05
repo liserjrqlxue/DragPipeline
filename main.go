@@ -41,6 +41,21 @@ var (
 		"local",
 		"run mode:[local|sge]",
 	)
+	cwd = flag.Bool(
+		"cwd",
+		false,
+		"add -cwd for SGE",
+	)
+	proj = flag.String(
+		"P",
+		"",
+		"project for SGE(-P)",
+	)
+	queue = flag.String(
+		"q",
+		"",
+		"queue for SGE(-q)",
+	)
 )
 
 type Task struct {
@@ -55,6 +70,9 @@ type Task struct {
 	ChanFrom   map[string]*chan string
 	ChanTo     map[string]*chan string
 	Scripts    map[string]string
+	mem        string
+	thread     string
+	submitArgs []string
 }
 
 var sampleDirList = []string{
@@ -69,6 +87,17 @@ func main() {
 	if *input == "" {
 		flag.Usage()
 		os.Exit(0)
+	}
+
+	var submitArgs []string
+	if *cwd {
+		submitArgs = append(submitArgs, "-cwd")
+	}
+	if *queue != "" {
+		submitArgs = append(submitArgs, "-q", *queue)
+	}
+	if *proj != "" {
+		submitArgs = append(submitArgs, "-P", *proj)
 	}
 
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
@@ -106,6 +135,9 @@ func main() {
 			TaskArgs:   strings.Split(item["args"], ","),
 			TaskToChan: make(map[string]map[string]*chan string),
 			Scripts:    make(map[string]string),
+			mem:        item["mem"],
+			thread:     item["thread"],
+			submitArgs: append(submitArgs, "-l", "vf="+item["mem"]+"G,p="+item["thread"], item["submitArgs"]),
 		}
 		taskList[task.TaskName] = &task
 		// create scripts
@@ -199,7 +231,7 @@ func main() {
 					switch *mode {
 					case "sge":
 						var hjid = strings.Join(froms, ",")
-						jid = simple_util.SGEsubmit(i, []string{item.Scripts[sampleID]}, hjid, nil)
+						jid = simple_util.SGEsubmit(i, []string{item.Scripts[sampleID]}, hjid, item.submitArgs)
 					default:
 						log.Printf("Run Task[%-7s:%s]:%s", taskName, sampleID, item.Scripts[sampleID])
 						simple_util.CheckErr(simple_util.RunCmd("bash", item.Scripts[sampleID]))
