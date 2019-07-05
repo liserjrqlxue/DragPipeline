@@ -127,42 +127,30 @@ func main() {
 	}
 
 	for _, item := range cfgInfo {
-		task := Task{
-			TaskName:   item["name"],
-			TaskInfo:   item,
-			TaskType:   item["type"],
-			TaskScript: filepath.Join(*localpath, "script", item["name"]+".sh"),
-			TaskArgs:   strings.Split(item["args"], ","),
-			TaskToChan: make(map[string]map[string]*chan string),
-			Scripts:    make(map[string]string),
-			mem:        item["mem"],
-			thread:     item["thread"],
-			submitArgs: append(submitArgs, "-l", "vf="+item["mem"]+"G,p="+item["thread"], item["submitArgs"]),
-			End:        true,
-		}
-		if item["submitArgs"] != "" {
-			task.submitArgs = append(task.submitArgs, sep.Split(item["submitArgs"], -1)...)
-		}
-		taskList[task.TaskName] = &task
+		task := createTask(item, *localpath, submitArgs)
+		/*
+			task := Task{
+				TaskName:   item["name"],
+				TaskInfo:   item,
+				TaskType:   item["type"],
+				TaskScript: filepath.Join(*localpath, "script", item["name"]+".sh"),
+				TaskArgs:   strings.Split(item["args"], ","),
+				TaskToChan: make(map[string]map[string]*chan string),
+				Scripts:    make(map[string]string),
+				mem:        item["mem"],
+				thread:     item["thread"],
+				submitArgs: append(submitArgs, "-l", "vf="+item["mem"]+"G,p="+item["thread"], item["submitArgs"]),
+				End:        true,
+			}
+			if item["submitArgs"] != "" {
+				task.submitArgs = append(task.submitArgs, sep.Split(item["submitArgs"], -1)...)
+			}
+		*/
+		taskList[task.TaskName] = task
 		// create scripts
 		switch task.TaskType {
 		case "sample":
-			createSampleScripts(&task, SampleInfo)
-			/*
-				for sampleID, sampleInfo := range SampleInfo {
-					script := filepath.Join(*workdir, sampleID, "shell", task.TaskName+".sh")
-					task.Scripts[sampleID] = script
-					var appendArgs []string
-					appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
-					for _, arg := range task.TaskArgs {
-						switch arg {
-						default:
-							appendArgs = append(appendArgs, sampleInfo[arg])
-						}
-					}
-					createShell(script, task.TaskScript, appendArgs...)
-				}
-			*/
+			createSampleScripts(task, SampleInfo)
 		}
 	}
 

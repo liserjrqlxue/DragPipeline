@@ -35,6 +35,25 @@ func createDir(workdir string, sampleDirList, sampleList []string) {
 	}
 }
 
+func createTask(cfg map[string]string, local string, submitArgs []string) *Task {
+	task := Task{
+		TaskName:   cfg["name"],
+		TaskInfo:   cfg,
+		TaskType:   cfg["type"],
+		TaskScript: filepath.Join(local, "script", cfg["name"]+".sh"),
+		TaskArgs:   strings.Split(cfg["args"], ","),
+		TaskToChan: make(map[string]map[string]*chan string),
+		Scripts:    make(map[string]string),
+		mem:        cfg["mem"],
+		thread:     cfg["thread"],
+		submitArgs: append(submitArgs, "-l", "vf="+cfg["mem"]+"G,p="+cfg["thread"], cfg["submitArgs"]),
+		End:        true,
+	}
+	if cfg["submitArgs"] != "" {
+		task.submitArgs = append(task.submitArgs, sep.Split(cfg["submitArgs"], -1)...)
+	}
+	return &task
+}
 func start(task Task) {
 	for taskName, chanMap := range task.TaskToChan {
 		log.Printf("%-7s -> Task[%-7s]", task.TaskName, taskName)
