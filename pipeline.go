@@ -54,7 +54,8 @@ func createTask(cfg map[string]string, local string, submitArgs []string) *Task 
 	}
 	return &task
 }
-func start(task Task) {
+
+func (task *Task) Start() {
 	for taskName, chanMap := range task.TaskToChan {
 		log.Printf("%-7s -> Task[%-7s]", task.TaskName, taskName)
 		for sampleID := range chanMap {
@@ -65,7 +66,7 @@ func start(task Task) {
 	}
 }
 
-func waitEnd(task Task) {
+func (task *Task) WaitEnd() {
 	for _, fromTask := range task.TaskFrom {
 		for taskName, chanMap := range fromTask.TaskToChan {
 			for sampleID := range chanMap {
