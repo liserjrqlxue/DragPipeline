@@ -106,8 +106,6 @@ func main() {
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
 		sampleList = append(sampleList, sampleID)
-		item["fq1"] = filepath.Join(item["rawDir"], item["read1"])
-		item["fq2"] = filepath.Join(item["rawDir"], item["read2"])
 		SampleInfo[sampleID] = item
 	}
 	createDir(*workdir, sampleDirList, sampleList)
