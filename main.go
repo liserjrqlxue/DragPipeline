@@ -58,21 +58,6 @@ var (
 	)
 )
 
-type Task struct {
-	TaskName   string
-	TaskType   string
-	TaskScript string
-	TaskArgs   []string
-	TaskInfo   map[string]string
-	TaskToChan map[string]map[string]*chan string // toTask sample chan
-	TaskFrom   []*Task
-	First, End bool
-	Scripts    map[string]string
-	mem        string
-	thread     string
-	submitArgs []string
-}
-
 var sampleDirList = []string{
 	"raw",
 	"filter",
@@ -112,27 +97,17 @@ func main() {
 	}
 	createDir(*workdir, sampleDirList, sampleList)
 
+	// create taskList
 	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
-
 	var taskList = make(map[string]*Task)
-	var startTask = Task{
-		TaskName:   "Start",
-		TaskToChan: make(map[string]map[string]*chan string),
-		First:      true,
-	}
-	var endTask = Task{
-		TaskName:   "End",
-		TaskToChan: make(map[string]map[string]*chan string),
-		End:        true,
-	}
-
 	for _, item := range cfgInfo {
 		task := createTask(item, *localpath, submitArgs)
 		taskList[task.TaskName] = task
 		// create scripts
 		task.CreateScripts(SampleInfo)
 	}
-
+	var startTask = createStartTask()
+	var endTask = createEndTask()
 	// add prior to current TaskFrom and add current task to prior's TaskToChan
 	// set startTask as prior of first tasks
 	for taskName, item := range taskList {
@@ -151,7 +126,7 @@ func main() {
 				fromTask.TaskToChan[taskName] = sampleListChan
 			}
 		} else {
-			item.TaskFrom = append(item.TaskFrom, &startTask)
+			item.TaskFrom = append(item.TaskFrom, startTask)
 
 			sampleListChan := make(map[string]*chan string)
 			for sampleID := range SampleInfo {
@@ -161,7 +136,6 @@ func main() {
 			startTask.TaskToChan[taskName] = sampleListChan
 		}
 	}
-
 	// set end task as prior of endTask
 	for _, item := range taskList {
 		if item.End {
@@ -177,7 +151,7 @@ func main() {
 		}
 	}
 
-	// run
+	// runTask
 	for _, task := range taskList {
 		switch task.TaskType {
 		case "sample":
@@ -187,6 +161,8 @@ func main() {
 		}
 	}
 
+	// start run
 	startTask.Start()
+	// wait finish
 	endTask.WaitEnd()
 }
