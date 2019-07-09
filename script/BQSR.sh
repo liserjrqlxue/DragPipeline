@@ -5,7 +5,7 @@ sampleID=$3
 
 Workdir=$workdir/$sampleID/bwa
 export PATH=$pipeline/tools:$PATH
-Bed=$pipeline/etc/37.target_addPrimer.sort.bed
+Bed=$pipeline/etc/target.bed
 DbSNP=$pipeline/hg19/dbsnp_138.hg19.vcf
 GoldIndels=$pipeline/hg19/Mills_and_1000G_gold_standard.indels.hg19.sites.vcf.gz
 hg19=$pipeline/hg19/hg19_chM_male_mask.fa

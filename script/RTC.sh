@@ -6,7 +6,7 @@ sampleID=$3
 Workdir=$workdir/$sampleID/bwa
 export PATH=$pipeline/tools:$PATH
 GATK=$pipeline/tools/GenomeAnalysisTK.jar
-Bed=$pipeline/etc/37.target_addPrimer.sort.bed
+Bed=$pipeline/etc/target.bed
 hg19=$pipeline/hg19/hg19_chM_male_mask.fa
 
 echo `date` Start RealignerTargetCreator
