@@ -54,13 +54,13 @@ var err error
 
 func main() {
 	flag.Parse()
-	// 8bp
+	// 7bp
 	log.Println(*p1)
 	P1 := *p1
-	P1 = P1[:8]
+	P1 = P1[:7]
 	log.Println(P1)
 	P2 := *p2
-	P2 = P2[:8]
+	P2 = P2[:7]
 	var barcodeHash = make(map[string]bool)
 	barcodeHash[P1] = true
 	barcodeHash[P2] = true
@@ -128,8 +128,8 @@ func main() {
 		if read1Name != read2Name {
 			log.Fatalf("PE:%d[%s!=%s]", peNum, read1Name, read2Name)
 		}
-		barcodes[0] = read1[1][:8]
-		barcodes[1] = read2[1][:8]
+		barcodes[0] = read1[1][:7]
+		barcodes[1] = read2[1][:7]
 		if !barcodeHash[barcodes[0]] || !barcodeHash[barcodes[1]] {
 			continue
 		}
