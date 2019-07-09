@@ -1,9 +1,8 @@
 name	mem	thread	type	prior	args
-barcode	1	1	sample		laneName,fq1,fq2,barcode,pL,pR
-FastqQC	1	6	sample	barcode	laneName
-bwaMem	8	8	sample	FastqQC	laneName
-merge	1	8	sample	bwaMem	laneName
-SortSam	8	2	sample	merge
+barcode	1	1	sample		fq1,fq2,barcode,pL,pR
+FastqQC	1	6	sample	barcode	
+bwaMem	8	8	sample	FastqQC	
+SortSam	8	2	sample	bwaMem
 FixMate	10	4	sample	SortSam
 indxFix	10	1	sample	FixMate
 RTC	10	4	sample	indxFix
