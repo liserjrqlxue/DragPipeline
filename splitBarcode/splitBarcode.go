@@ -96,10 +96,10 @@ func (sample *Sample) create(item map[string]string, peKey, outdir string) {
 }
 
 func (sample *Sample) close() {
-	simple_util.CheckErr(sample.F1.Close())
-	simple_util.CheckErr(sample.F2.Close())
 	simple_util.CheckErr(sample.W1.Close())
 	simple_util.CheckErr(sample.W2.Close())
+	simple_util.CheckErr(sample.F1.Close())
+	simple_util.CheckErr(sample.F2.Close())
 }
 
 func main() {
@@ -204,11 +204,11 @@ func main() {
 	// close()
 	for _, pe := range FqInfo {
 		log.Printf("close pe[%s]", pe.Key)
-		pe.close()
+		defer pe.close()
 	}
 	for _, sample := range SampleInfo {
 		log.Printf("close sample[%s]", sample.SampleID)
-		sample.close()
+		defer sample.close()
 	}
 
 	if *memprofile != "" {
