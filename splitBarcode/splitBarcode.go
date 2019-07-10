@@ -112,16 +112,17 @@ func main() {
 		if ok {
 			log.Fatalf("sample[%s] duplicate", sampleID)
 		} else {
+			sample = &Sample{}
 			sample.create(item, key, filepath.Join(*outDir, sampleID, *subDir))
 			SampleInfo[sampleID] = sample
 		}
-
 		barcodeMap[sample.NewpL] = sampleID
 		barcodeMap[sample.NewpR] = sampleID
 
 		// FqInfo
 		pe, ok := FqInfo[key]
 		if !ok {
+			pe = &PE{}
 			pe.create(key, item["fq1"], item["fq2"])
 			FqInfo[key] = pe
 		}
