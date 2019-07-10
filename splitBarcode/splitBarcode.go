@@ -79,6 +79,9 @@ type Sample struct {
 	F1, F2       *os.File
 	W1, W2       *gzip.Writer
 	hitNum       uint64
+	FQ           chan [2]string
+	close        chan bool
+	finish       chan bool
 }
 
 func (sample *Sample) create(item map[string]string, peKey, outdir string) {
@@ -91,15 +94,33 @@ func (sample *Sample) create(item map[string]string, peKey, outdir string) {
 	simple_util.CheckErr(os.MkdirAll(outdir, 0755))
 	sample.Fq1 = filepath.Join(outdir, sample.SampleID+".raw_1.fq.gz")
 	sample.Fq2 = filepath.Join(outdir, sample.SampleID+".raw_2.fq.gz")
-	sample.F1, sample.W1 = writeFq(sample.Fq1)
-	sample.F2, sample.W2 = writeFq(sample.Fq2)
+	sample.FQ = make(chan [2]string)
+	sample.close = make(chan bool)
+	sample.finish = make(chan bool)
 }
 
-func (sample *Sample) close() {
-	simple_util.CheckErr(sample.W1.Close())
-	simple_util.CheckErr(sample.W2.Close())
-	simple_util.CheckErr(sample.F1.Close())
-	simple_util.CheckErr(sample.F2.Close())
+func (sample *Sample) write() {
+	log.Printf("start %s", sample.SampleID)
+	sample.F1, sample.W1 = writeFq(sample.Fq1)
+	defer simple_util.DeferClose(sample.F1)
+	defer simple_util.DeferClose(sample.W1)
+	sample.F2, sample.W2 = writeFq(sample.Fq2)
+	defer simple_util.DeferClose(sample.F2)
+	defer simple_util.DeferClose(sample.W2)
+	for {
+		select {
+		case s := <-sample.FQ:
+			_, err = fmt.Fprintln(sample.W1, s[0])
+			simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
+			_, err = fmt.Fprintln(sample.W2, s[1])
+			simple_util.CheckErr(err, sample.SampleID, "write fq2 error")
+		case <-sample.close:
+			sample.FQ <- nil
+			log.Printf("finish %s", sample.SampleID)
+			sample.finish <- true
+			return
+		}
+	}
 }
 
 func main() {
@@ -136,6 +157,7 @@ func main() {
 			sample = &Sample{}
 			sample.create(item, key, filepath.Join(*outDir, sampleID, *subDir))
 			SampleInfo[sampleID] = sample
+			go sample.write()
 		}
 		barcodeMap[sample.NewpL] = sampleID
 		barcodeMap[sample.NewpR] = sampleID
@@ -192,10 +214,10 @@ func main() {
 			read2[1] = read2[1][8:]
 			read1[3] = read1[3][8:]
 			read2[3] = read2[3][8:]
-			_, err = fmt.Fprintln(sample.W1, strings.Join(read1[:], "\n"))
-			simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
-			_, err = fmt.Fprintln(sample.W2, strings.Join(read2[:], "\n"))
-			simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
+			var FQ [2]string
+			FQ[0] = strings.Join(read1[:], "\n")
+			FQ[1] = strings.Join(read1[:], "\n")
+			sample.FQ <- FQ
 		}
 		simple_util.CheckErr(pe.S1.Err())
 		simple_util.CheckErr(pe.S2.Err())
@@ -206,9 +228,13 @@ func main() {
 		log.Printf("close pe[%s]", pe.Key)
 		defer pe.close()
 	}
+	// close
 	for _, sample := range SampleInfo {
-		log.Printf("close sample[%s]", sample.SampleID)
-		defer sample.close()
+		sample.close <- true
+	}
+	// wait close done
+	for _, sample := range SampleInfo {
+		<-sample.finish
 	}
 
 	if *memprofile != "" {
