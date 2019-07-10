@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"strings"
 )
 
@@ -27,6 +28,16 @@ var (
 		"subdir",
 		"raw",
 		"output split data to outdir/sampleID/subDir/",
+	)
+	cpuprofile = flag.String(
+		"cpuprofile",
+		"",
+		"cpu profile",
+	)
+	memprofile = flag.String(
+		"memprofile",
+		"",
+		"mem profile",
 	)
 )
 
@@ -52,10 +63,10 @@ func (pe *PE) create(key, fq1, fq2 string) {
 }
 
 func (pe *PE) close() {
-	simple_util.CheckErr(pe.F1.Close())
-	simple_util.CheckErr(pe.F2.Close())
 	simple_util.CheckErr(pe.R1.Close())
 	simple_util.CheckErr(pe.R2.Close())
+	simple_util.CheckErr(pe.F1.Close())
+	simple_util.CheckErr(pe.F2.Close())
 }
 
 type Sample struct {
@@ -92,11 +103,21 @@ func (sample *Sample) close() {
 }
 
 func main() {
+	log.Printf("Start:%+v", os.Args)
 	flag.Parse()
 	if *input == "" {
 		flag.Usage()
 		log.Printf("-list required!")
 		os.Exit(0)
+	}
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
 	}
 
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
@@ -105,7 +126,7 @@ func main() {
 	var FqInfo = make(map[string]*PE)
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
-		key := strings.Join([]string{item["barcode"], item["fq1"], item["fq2"]}, "-")
+		key := strings.Join([]string{item["barcode"], item["fq1"], item["fq2"]}, "\t")
 
 		// SampleInfo
 		sample, ok := SampleInfo[sampleID]
@@ -172,9 +193,9 @@ func main() {
 			read1[3] = read1[3][8:]
 			read2[3] = read2[3][8:]
 			_, err = fmt.Fprintln(sample.W1, strings.Join(read1[:], "\n"))
-			simple_util.CheckErr(err)
+			simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
 			_, err = fmt.Fprintln(sample.W2, strings.Join(read2[:], "\n"))
-			simple_util.CheckErr(err)
+			simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
 		}
 		simple_util.CheckErr(pe.S1.Err())
 		simple_util.CheckErr(pe.S2.Err())
@@ -182,11 +203,23 @@ func main() {
 
 	// close()
 	for _, pe := range FqInfo {
+		log.Printf("close pe[%s]", pe.Key)
 		pe.close()
 	}
 	for _, sample := range SampleInfo {
+		log.Printf("close sample[%s]", sample.SampleID)
 		sample.close()
 	}
+
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		defer simple_util.DeferClose(f)
+	}
+	log.Printf("End")
 }
 
 func readFq(path string) (file *os.File, reader *gzip.Reader, scanner *bufio.Scanner) {
