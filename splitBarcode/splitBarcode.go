@@ -81,7 +81,7 @@ func (sample *Sample) create(item map[string]string, peKey, outdir string) {
 	sample.Fq1 = filepath.Join(outdir, sample.SampleID+".raw_1.fq.gz")
 	sample.Fq2 = filepath.Join(outdir, sample.SampleID+".raw_2.fq.gz")
 	sample.F1, sample.W1 = writeFq(sample.Fq1)
-	sample.F1, sample.W1 = writeFq(sample.Fq1)
+	sample.F2, sample.W2 = writeFq(sample.Fq2)
 }
 
 func (sample *Sample) close() {
