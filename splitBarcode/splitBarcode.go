@@ -81,9 +81,8 @@ func main() {
 			strings.Join(
 				[]string{
 					*name,
-					*barcode,
-					"_1.fq.gz",
-				}, ",",
+					"raw_1.fq.gz",
+				}, ".",
 			),
 		),
 	)
@@ -96,9 +95,8 @@ func main() {
 			strings.Join(
 				[]string{
 					*name,
-					*barcode,
-					"_2.fq.gz",
-				}, ",",
+					"raw_2.fq.gz",
+				}, ".",
 			),
 		),
 	)
