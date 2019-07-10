@@ -13,137 +13,179 @@ import (
 )
 
 var (
-	name = flag.String(
-		"name",
+	input = flag.String(
+		"input",
 		"",
-		"sample name",
+		"input list",
 	)
-	barcode = flag.String(
-		"barcode",
-		"",
-		"sample barcode",
-	)
-	p1 = flag.String(
-		"p1",
-		"",
-		"p1",
-	)
-	p2 = flag.String(
-		"p2",
-		"",
-		"p2",
-	)
-	fq1 = flag.String(
-		"fq1",
-		"",
-		"fq1",
-	)
-	fq2 = flag.String(
-		"fq2",
-		"",
-		"fq2",
-	)
-	outdir = flag.String(
+	outDir = flag.String(
 		"outdir",
-		"",
+		".",
 		"outdir",
+	)
+	subDir = flag.String(
+		"subdir",
+		"raw",
+		"output split data to outdir/sampleID/subDir/",
 	)
 )
 
 var err error
 
+type PE struct {
+	Key      string
+	Fq1, Fq2 string
+	F1, F2   *os.File
+	R1, R2   *gzip.Reader
+	S1, S2   *bufio.Scanner
+	// current pe
+	peNo   uint64
+	peName string
+}
+
+func (pe *PE) create(key, fq1, fq2 string) {
+	pe.Key = key
+	pe.Fq1 = fq1
+	pe.Fq2 = fq2
+	pe.F1, pe.R1, pe.S1 = readFq(fq1)
+	pe.F2, pe.R2, pe.S2 = readFq(fq2)
+}
+
+func (pe *PE) close() {
+	simple_util.CheckErr(pe.F1.Close())
+	simple_util.CheckErr(pe.F2.Close())
+	simple_util.CheckErr(pe.R1.Close())
+	simple_util.CheckErr(pe.R2.Close())
+}
+
+type Sample struct {
+	SampleID     string
+	barcode      string
+	pL, pR       string
+	NewpL, NewpR string
+	peKey        string
+	Fq1, Fq2     string
+	F1, F2       *os.File
+	W1, W2       *gzip.Writer
+	hitNum       uint64
+}
+
+func (sample *Sample) create(item map[string]string, peKey, outdir string) {
+	sample.SampleID = item["sampleID"]
+	sample.pL = item["pL"]
+	sample.pR = item["pR"]
+	sample.NewpL = sample.pL[:7]
+	sample.NewpR = sample.pR[:7]
+	sample.peKey = peKey
+	simple_util.CheckErr(os.MkdirAll(outdir, 0755))
+	sample.Fq1 = filepath.Join(outdir, sample.SampleID+".raw_1.fq.gz")
+	sample.Fq2 = filepath.Join(outdir, sample.SampleID+".raw_2.fq.gz")
+	sample.F1, sample.W1 = writeFq(sample.Fq1)
+	sample.F1, sample.W1 = writeFq(sample.Fq1)
+}
+
+func (sample *Sample) close() {
+	simple_util.CheckErr(sample.F1.Close())
+	simple_util.CheckErr(sample.F2.Close())
+	simple_util.CheckErr(sample.W1.Close())
+	simple_util.CheckErr(sample.W2.Close())
+}
+
 func main() {
 	flag.Parse()
-	// 7bp
-	log.Println(*p1)
-	P1 := *p1
-	P1 = P1[:7]
-	log.Println(P1)
-	P2 := *p2
-	P2 = P2[:7]
-	var barcodeHash = make(map[string]bool)
-	barcodeHash[P1] = true
-	barcodeHash[P2] = true
-	log.Printf("%+v", barcodeHash)
+	if *input == "" {
+		flag.Usage()
+		log.Printf("-list required!")
+		os.Exit(0)
+	}
 
-	fq1F, fq1R, fq1S := readFq(*fq1)
-	fq2F, fq2R, fq2S := readFq(*fq2)
-	defer simple_util.DeferClose(fq1F)
-	defer simple_util.DeferClose(fq1R)
-	defer simple_util.DeferClose(fq2F)
-	defer simple_util.DeferClose(fq2R)
+	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
+	var SampleInfo = make(map[string]*Sample)
+	var barcodeMap = make(map[string]string)
+	var FqInfo = make(map[string]*PE)
+	for _, item := range inputInfo {
+		sampleID := item["sampleID"]
+		key := strings.Join([]string{item["barcode"], item["fq1"], item["fq2"]}, "-")
 
-	simple_util.CheckErr(os.MkdirAll(*outdir, 0755))
+		// SampleInfo
+		sample, ok := SampleInfo[sampleID]
+		if ok {
+			log.Fatalf("sample[%s] duplicate", sampleID)
+		} else {
+			sample.create(item, key, filepath.Join(*outDir, sampleID, *subDir))
+			SampleInfo[sampleID] = sample
+		}
 
-	newFq1F, newFq1W := writeFq(
-		filepath.Join(
-			*outdir,
-			strings.Join(
-				[]string{
-					*name,
-					"raw_1.fq.gz",
-				}, ".",
-			),
-		),
-	)
-	defer simple_util.DeferClose(newFq1F)
-	defer simple_util.DeferClose(newFq1W)
+		barcodeMap[sample.NewpL] = sampleID
+		barcodeMap[sample.NewpR] = sampleID
 
-	newFq2F, newFq2W := writeFq(
-		filepath.Join(
-			*outdir,
-			strings.Join(
-				[]string{
-					*name,
-					"raw_2.fq.gz",
-				}, ".",
-			),
-		),
-	)
-	defer simple_util.DeferClose(newFq2F)
-	defer simple_util.DeferClose(newFq2W)
+		// FqInfo
+		pe, ok := FqInfo[key]
+		if !ok {
+			pe.create(key, item["fq1"], item["fq2"])
+			FqInfo[key] = pe
+		}
+	}
 
-	var peNum, hitNum int
-	var barcodes [2]string
-	var read1, read2 [4]string
-	var loop = true
-	for loop {
-		peNum++
-		//for i:=range read1{
-		for i := 0; i < 4; i++ {
-			loop = fq1S.Scan() && fq2S.Scan()
+	for key, pe := range FqInfo {
+		log.Printf("split[%s]", key)
+		var loop = true
+		var read1, read2 [4]string
+		for loop {
+			for i := 0; i < 4; i++ {
+				loop = pe.S1.Scan() && pe.S2.Scan()
+				if !loop {
+					break
+				}
+				read1[i] = pe.S1.Text()
+				read2[i] = pe.S2.Text()
+			}
 			if !loop {
 				break
 			}
-			read1[i] = fq1S.Text()
-			read2[i] = fq2S.Text()
+			pe.peNo++
+			readName1 := strings.Split(read1[0], "/")[0]
+			readName2 := strings.Split(read2[0], "/")[0]
+			if readName1 != readName2 {
+				log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
+			} else {
+				pe.peName = readName1
+			}
+			sample1, ok1 := barcodeMap[read1[1][:7]]
+			sample2, ok2 := barcodeMap[read1[1][:7]]
+			if !ok1 || !ok2 {
+				continue
+			}
+			if sample1 != sample2 {
+				log.Fatalf(
+					"different Samples[%s:%svs%s:%s] from sample PE[%s:%d]",
+					sample1, read1[1][:7],
+					sample2, read2[1][:7],
+					pe.peName, pe.peNo,
+				)
+			}
+			sample := SampleInfo[sample1]
+			sample.hitNum++
+			read1[1] = read1[1][8:]
+			read2[1] = read2[1][8:]
+			read1[3] = read1[3][8:]
+			read2[3] = read2[3][8:]
+			_, err = fmt.Fprintln(sample.W1, strings.Join(read1[:], "\n"))
+			simple_util.CheckErr(err)
+			_, err = fmt.Fprintln(sample.W2, strings.Join(read2[:], "\n"))
+			simple_util.CheckErr(err)
 		}
-		if !loop {
-			break
-		}
-		read1Name := strings.Split(read1[0], "/")[0]
-		read2Name := strings.Split(read2[0], "/")[0]
-		if read1Name != read2Name {
-			log.Fatalf("PE:%d[%s!=%s]", peNum, read1Name, read2Name)
-		}
-		barcodes[0] = read1[1][:7]
-		barcodes[1] = read2[1][:7]
-		if !barcodeHash[barcodes[0]] || !barcodeHash[barcodes[1]] {
-			continue
-		}
-		hitNum++
-		read1[1] = read1[1][8:]
-		read2[1] = read2[1][8:]
-		read1[3] = read1[3][8:]
-		read2[3] = read2[3][8:]
-		_, err = fmt.Fprintln(newFq1W, strings.Join(read1[:], "\n"))
-		simple_util.CheckErr(err)
-		_, err = fmt.Fprintln(newFq2W, strings.Join(read2[:], "\n"))
-		simple_util.CheckErr(err)
+		simple_util.CheckErr(pe.S1.Err())
+		simple_util.CheckErr(pe.S2.Err())
 	}
-	simple_util.CheckErr(fq1S.Err())
-	simple_util.CheckErr(fq2S.Err())
-	log.Printf("%s\t%d\t%s\t%d", *barcode, peNum, *name, hitNum)
+
+	// close()
+	for _, pe := range FqInfo {
+		pe.close()
+	}
+	for _, sample := range SampleInfo {
+		sample.close()
+	}
 }
 
 func readFq(path string) (file *os.File, reader *gzip.Reader, scanner *bufio.Scanner) {
