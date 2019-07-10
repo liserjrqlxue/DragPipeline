@@ -80,7 +80,6 @@ type Sample struct {
 	W1, W2       *gzip.Writer
 	hitNum       uint64
 	FQ           chan [2]string
-	close        chan bool
 	finish       chan bool
 }
 
@@ -95,7 +94,6 @@ func (sample *Sample) create(item map[string]string, peKey, outdir string) {
 	sample.Fq1 = filepath.Join(outdir, sample.SampleID+".raw_1.fq.gz")
 	sample.Fq2 = filepath.Join(outdir, sample.SampleID+".raw_2.fq.gz")
 	sample.FQ = make(chan [2]string)
-	sample.close = make(chan bool)
 	sample.finish = make(chan bool)
 }
 
@@ -107,20 +105,14 @@ func (sample *Sample) write() {
 	sample.F2, sample.W2 = writeFq(sample.Fq2)
 	defer simple_util.DeferClose(sample.F2)
 	defer simple_util.DeferClose(sample.W2)
-	for {
-		select {
-		case s := <-sample.FQ:
-			_, err = fmt.Fprintln(sample.W1, s[0])
-			simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
-			_, err = fmt.Fprintln(sample.W2, s[1])
-			simple_util.CheckErr(err, sample.SampleID, "write fq2 error")
-		case <-sample.close:
-			sample.FQ <- nil
-			log.Printf("finish %s", sample.SampleID)
-			sample.finish <- true
-			return
-		}
+	for FQ := range sample.FQ {
+		_, err = fmt.Fprintln(sample.W1, FQ[0])
+		simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
+		_, err = fmt.Fprintln(sample.W2, FQ[1])
+		simple_util.CheckErr(err, sample.SampleID, "write fq2 error")
 	}
+	log.Printf("finis %s", sample.SampleID)
+	defer func() { sample.finish <- true }()
 }
 
 func main() {
@@ -217,7 +209,7 @@ func main() {
 			var FQ [2]string
 			FQ[0] = strings.Join(read1[:], "\n")
 			FQ[1] = strings.Join(read1[:], "\n")
-			sample.FQ <- FQ
+			go func() { sample.FQ <- FQ }()
 		}
 		simple_util.CheckErr(pe.S1.Err())
 		simple_util.CheckErr(pe.S2.Err())
@@ -228,13 +220,10 @@ func main() {
 		log.Printf("close pe[%s]", pe.Key)
 		defer pe.close()
 	}
-	// close
-	for _, sample := range SampleInfo {
-		sample.close <- true
-	}
+
 	// wait close done
 	for _, sample := range SampleInfo {
-		<-sample.finish
+		close(sample.FQ)
 	}
 
 	if *memprofile != "" {
