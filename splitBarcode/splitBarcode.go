@@ -176,6 +176,7 @@ func main() {
 		}
 	}
 
+	var wg2 sync.WaitGroup
 	for key, pe := range FqInfo {
 		log.Printf("split[%s]", key)
 		var loop = true
@@ -193,23 +194,22 @@ func main() {
 				break
 			}
 			pe.peNo++
-			splitReads(read1, read2, pe, barcodeMap, SampleInfo)
+			wg2.Add(1)
+			go splitReads(wg2, read1, read2, pe, barcodeMap, SampleInfo)
 		}
 		simple_util.CheckErr(pe.S1.Err())
 		simple_util.CheckErr(pe.S2.Err())
-	}
-
-	// close()
-	for _, pe := range FqInfo {
 		log.Printf("close pe[%s]", pe.Key)
-		defer pe.close()
+		pe.close()
 	}
+	wg2.Wait()
 
 	// wait close done
 	for _, sample := range SampleInfo {
 		go sample.close()
 	}
 
+	// wait write done
 	wg.Wait()
 
 	if *memprofile != "" {
@@ -242,7 +242,8 @@ func writeFq(path string) (file *os.File, writer *gzip.Writer) {
 	return
 }
 
-func splitReads(read1, read2 [4]string, pe *PE, barcodeMap map[string]string, SampleInfo map[string]*Sample) {
+func splitReads(wg2 sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap map[string]string, SampleInfo map[string]*Sample) {
+	defer wg2.Done()
 	readName1 := strings.Split(read1[0], "/")[0]
 	readName2 := strings.Split(read2[0], "/")[0]
 	if readName1 != readName2 {
