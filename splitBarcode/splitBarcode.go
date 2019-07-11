@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -82,7 +83,6 @@ type Sample struct {
 	hitNum       uint64
 	writeNum     uint64
 	FQ           chan [2]string
-	finish       chan bool
 }
 
 func (sample *Sample) create(item map[string]string, peKey, outdir string) {
@@ -96,10 +96,10 @@ func (sample *Sample) create(item map[string]string, peKey, outdir string) {
 	sample.Fq1 = filepath.Join(outdir, sample.SampleID+".raw_1.fq.gz")
 	sample.Fq2 = filepath.Join(outdir, sample.SampleID+".raw_2.fq.gz")
 	sample.FQ = make(chan [2]string)
-	sample.finish = make(chan bool)
 }
 
-func (sample *Sample) write() {
+func (sample *Sample) write(wg sync.WaitGroup) {
+	defer wg.Done()
 	log.Printf("start %s", sample.SampleID)
 	sample.F1, sample.W1 = writeFq(sample.Fq1)
 	defer simple_util.DeferClose(sample.F1)
@@ -115,7 +115,6 @@ func (sample *Sample) write() {
 		simple_util.CheckErr(err, sample.SampleID, "write fq2 error")
 	}
 	log.Printf("finis %s", sample.SampleID)
-	defer func() { sample.finish <- true }()
 }
 
 func (sample *Sample) close() {
@@ -123,7 +122,7 @@ func (sample *Sample) close() {
 		log.Printf("wait sample[%s] write finish:%d/%d", sample.SampleID, sample.writeNum, sample.hitNum)
 		time.Sleep(1 * time.Second)
 	}
-	log.Printf("wait sample[%s] write done:%d/%d", sample.SampleID, sample.writeNum, sample.hitNum)
+	log.Printf("wait sample[%s] write done:%d/%d\tDone", sample.SampleID, sample.writeNum, sample.hitNum)
 	close(sample.FQ)
 }
 
@@ -149,6 +148,7 @@ func main() {
 	var SampleInfo = make(map[string]*Sample)
 	var barcodeMap = make(map[string]string)
 	var FqInfo = make(map[string]*PE)
+	var wg sync.WaitGroup
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
 		key := strings.Join([]string{item["barcode"], item["fq1"], item["fq2"]}, "\t")
@@ -161,7 +161,8 @@ func main() {
 			sample = &Sample{}
 			sample.create(item, key, filepath.Join(*outDir, sampleID, *subDir))
 			SampleInfo[sampleID] = sample
-			go sample.write()
+			wg.Add(1)
+			go sample.write(wg)
 		}
 		barcodeMap[sample.NewpL] = sampleID
 		barcodeMap[sample.NewpR] = sampleID
@@ -192,36 +193,7 @@ func main() {
 				break
 			}
 			pe.peNo++
-			readName1 := strings.Split(read1[0], "/")[0]
-			readName2 := strings.Split(read2[0], "/")[0]
-			if readName1 != readName2 {
-				log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
-			} else {
-				pe.peName = readName1
-			}
-			sample1, ok1 := barcodeMap[read1[1][:7]]
-			sample2, ok2 := barcodeMap[read1[1][:7]]
-			if !ok1 || !ok2 {
-				continue
-			}
-			if sample1 != sample2 {
-				log.Fatalf(
-					"different Samples[%s:%svs%s:%s] from sample PE[%s:%d]",
-					sample1, read1[1][:7],
-					sample2, read2[1][:7],
-					pe.peName, pe.peNo,
-				)
-			}
-			sample := SampleInfo[sample1]
-			sample.hitNum++
-			read1[1] = read1[1][8:]
-			read2[1] = read2[1][8:]
-			read1[3] = read1[3][8:]
-			read2[3] = read2[3][8:]
-			var FQ [2]string
-			FQ[0] = strings.Join(read1[:], "\n")
-			FQ[1] = strings.Join(read1[:], "\n")
-			go func() { sample.FQ <- FQ }()
+			splitReads(read1, read2, pe, barcodeMap, SampleInfo)
 		}
 		simple_util.CheckErr(pe.S1.Err())
 		simple_util.CheckErr(pe.S2.Err())
@@ -235,8 +207,10 @@ func main() {
 
 	// wait close done
 	for _, sample := range SampleInfo {
-		sample.close()
+		go sample.close()
 	}
+
+	wg.Wait()
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
@@ -266,4 +240,37 @@ func writeFq(path string) (file *os.File, writer *gzip.Writer) {
 	writer = gzip.NewWriter(file)
 	simple_util.CheckErr(err)
 	return
+}
+
+func splitReads(read1, read2 [4]string, pe *PE, barcodeMap map[string]string, SampleInfo map[string]*Sample) {
+	readName1 := strings.Split(read1[0], "/")[0]
+	readName2 := strings.Split(read2[0], "/")[0]
+	if readName1 != readName2 {
+		log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
+	} else {
+		pe.peName = readName1
+	}
+	sample1, ok1 := barcodeMap[read1[1][:7]]
+	sample2, ok2 := barcodeMap[read1[1][:7]]
+	if !ok1 || !ok2 {
+		return
+	}
+	if sample1 != sample2 {
+		log.Fatalf(
+			"different Samples[%s:%svs%s:%s] from sample PE[%s:%d]",
+			sample1, read1[1][:7],
+			sample2, read2[1][:7],
+			pe.peName, pe.peNo,
+		)
+	}
+	sample := SampleInfo[sample1]
+	sample.hitNum++
+	read1[1] = read1[1][8:]
+	read2[1] = read2[1][8:]
+	read1[3] = read1[3][8:]
+	read2[3] = read2[3][8:]
+	var FQ [2]string
+	FQ[0] = strings.Join(read1[:], "\n")
+	FQ[1] = strings.Join(read1[:], "\n")
+	go func() { sample.FQ <- FQ }()
 }
