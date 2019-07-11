@@ -1,5 +1,5 @@
 name	mem	thread	type	prior	args
-barcode	1	1	sample		fq1,fq2,barcode,pL,pR
+barcode	1	1	batch		list
 FastqQC	1	6	sample	barcode	
 bwaMem	8	8	sample	FastqQC	
 SortSam	8	2	sample	bwaMem
