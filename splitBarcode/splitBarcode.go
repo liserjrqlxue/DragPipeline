@@ -148,7 +148,7 @@ func main() {
 	var SampleInfo = make(map[string]*Sample)
 	var barcodeMap = make(map[string]string)
 	var FqInfo = make(map[string]*PE)
-	var wg *sync.WaitGroup
+	var wg sync.WaitGroup
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
 		key := strings.Join([]string{item["barcode"], item["fq1"], item["fq2"]}, "\t")
@@ -162,7 +162,7 @@ func main() {
 			sample.create(item, key, filepath.Join(*outDir, sampleID, *subDir))
 			SampleInfo[sampleID] = sample
 			wg.Add(1)
-			go sample.write(wg)
+			go sample.write(&wg)
 		}
 		barcodeMap[sample.NewpL] = sampleID
 		barcodeMap[sample.NewpR] = sampleID
@@ -176,7 +176,7 @@ func main() {
 		}
 	}
 
-	var wg2 *sync.WaitGroup
+	var wg2 sync.WaitGroup
 	for key, pe := range FqInfo {
 		log.Printf("split[%s]", key)
 		var loop = true
@@ -195,7 +195,7 @@ func main() {
 			}
 			pe.peNo++
 			wg2.Add(1)
-			go splitReads(wg2, read1, read2, pe, barcodeMap, SampleInfo)
+			go splitReads(&wg2, read1, read2, pe, barcodeMap, SampleInfo)
 		}
 		simple_util.CheckErr(pe.S1.Err())
 		simple_util.CheckErr(pe.S2.Err())
