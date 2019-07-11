@@ -17,15 +17,26 @@ func createShell(fileName, script string, args ...string) {
 	simple_util.CheckErr(err)
 }
 
-func createDir(workdir string, sampleDirList, sampleList []string) {
+func createDir(workDir string, batchDirList, sampleDirList, sampleList []string) {
+	for _, subDir := range batchDirList {
+		simple_util.CheckErr(
+			os.MkdirAll(
+				filepath.Join(
+					workDir,
+					subDir,
+				),
+				0755,
+			),
+		)
+	}
 	for _, sampleID := range sampleList {
-		for _, subdir := range sampleDirList {
+		for _, subDir := range sampleDirList {
 			simple_util.CheckErr(
 				os.MkdirAll(
 					filepath.Join(
-						workdir,
+						workDir,
 						sampleID,
-						subdir,
+						subDir,
 					),
 					0755,
 				),

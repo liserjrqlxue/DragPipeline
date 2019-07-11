@@ -81,26 +81,49 @@ func (task *Task) WaitEnd() {
 	}
 }
 
-func (task *Task) RunTask(sampleID string) {
+func (task *Task) RunTask(sampleIDs ...string) {
 	var froms []string
 	for _, fromTask := range task.TaskFrom {
-		ch := fromTask.TaskToChan[task.TaskName][sampleID]
-		fromInfo := <-*ch
-		froms = append(froms, fromInfo)
+		for _, sampleID := range sampleIDs {
+			ch := fromTask.TaskToChan[task.TaskName][sampleID]
+			fromInfo := <-*ch
+			froms = append(froms, fromInfo)
+		}
 	}
-	var jid = task.TaskName + ":" + sampleID
-	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, sampleID, strings.Join(froms, ","))
+
+	var jid = task.TaskName + "[" + strings.Join(sampleIDs, ",") + "]"
+	log.Printf("Task[%-7s:%+v] <- {%s}", task.TaskName, sampleIDs, strings.Join(froms, ","))
 	switch *mode {
 	case "sge":
 		var hjid = strings.Join(froms, ",")
-		jid = simple_util.SGEsubmit([]string{task.Scripts[sampleID]}, hjid, task.submitArgs)
+		var jids []string
+		switch task.TaskType {
+		case "sample":
+			for _, sampleID := range sampleIDs {
+				jids = append(jids, simple_util.SGEsubmit([]string{task.Scripts[sampleID]}, hjid, task.submitArgs))
+			}
+		case "batch":
+			jids = append(jids, simple_util.SGEsubmit([]string{task.Scripts[sampleIDs[0]]}, hjid, task.submitArgs))
+		}
+		jid = strings.Join(jids, ",")
 	default:
-		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, sampleID, task.Scripts[sampleID])
-		simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleID]))
+		switch task.TaskType {
+		case "sample":
+			for _, sampleID := range sampleIDs {
+				log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, sampleID, task.Scripts[sampleID])
+				simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleID]))
+			}
+		case "batch":
+			log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, "batch", task.Scripts[sampleIDs[0]])
+			simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleIDs[0]]))
+		}
+
 	}
 	for _, chanMap := range task.TaskToChan {
-		log.Printf("Task[%-7s:%s] -> %s", task.TaskName, sampleID, jid)
-		*chanMap[sampleID] <- jid
+		log.Printf("Task[%-7s:%+v] -> %s", task.TaskName, sampleIDs, jid)
+		for _, sampleID := range sampleIDs {
+			*chanMap[sampleID] <- jid
+		}
 	}
 }
 
@@ -108,15 +131,17 @@ func (task *Task) CreateScripts(SampleInfo map[string]map[string]string) {
 	switch task.TaskType {
 	case "sample":
 		task.createSampleScripts(SampleInfo)
+	case "batch":
+		task.createBatchScripts(SampleInfo)
 	}
 }
 
 func (task *Task) createSampleScripts(SampleInfo map[string]map[string]string) {
 	for sampleID, sampleInfo := range SampleInfo {
-		script := filepath.Join(*workdir, sampleID, "shell", task.TaskName+".sh")
+		script := filepath.Join(*outDir, sampleID, "shell", task.TaskName+".sh")
 		task.Scripts[sampleID] = script
 		var appendArgs []string
-		appendArgs = append(appendArgs, *workdir, *localpath, sampleID)
+		appendArgs = append(appendArgs, *outDir, *localpath, sampleID)
 		for _, arg := range task.TaskArgs {
 			switch arg {
 			default:
@@ -124,5 +149,22 @@ func (task *Task) createSampleScripts(SampleInfo map[string]map[string]string) {
 			}
 		}
 		createShell(script, task.TaskScript, appendArgs...)
+	}
+}
+
+func (task *Task) createBatchScripts(SampleInfo map[string]map[string]string) {
+	script := filepath.Join(*outDir, "shell", task.TaskName+".sh")
+	var appendArgs []string
+	appendArgs = append(appendArgs, *outDir, *localpath)
+	for _, arg := range task.TaskArgs {
+		switch arg {
+		case "list":
+			appendArgs = append(appendArgs, filepath.Join(*outDir, "input.list"))
+		default:
+		}
+	}
+	createShell(script, task.TaskScript, appendArgs...)
+	for sampleID := range SampleInfo {
+		task.Scripts[sampleID] = script
 	}
 }

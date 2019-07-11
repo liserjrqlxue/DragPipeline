@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/liserjrqlxue/simple-util"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,13 +19,13 @@ var (
 var (
 	input = flag.String(
 		"input",
-		filepath.Join(exPath, "test", "input.list"),
+		"",
 		"input list",
 	)
-	workdir = flag.String(
-		"workdir",
-		"workdir",
-		"workdir",
+	outDir = flag.String(
+		"outdir",
+		"",
+		"output dir",
 	)
 	localpath = flag.String(
 		"local",
@@ -58,6 +59,10 @@ var (
 	)
 )
 
+var batchDirList = []string{
+	"shell",
+}
+
 var sampleDirList = []string{
 	"raw",
 	"filter",
@@ -71,8 +76,9 @@ var (
 
 func main() {
 	flag.Parse()
-	if *input == "" {
+	if *input == "" || *outDir == "" {
 		flag.Usage()
+		log.Printf("-input and -outdir required")
 		os.Exit(0)
 	}
 
@@ -95,7 +101,8 @@ func main() {
 		sampleList = append(sampleList, sampleID)
 		SampleInfo[sampleID] = item
 	}
-	createDir(*workdir, sampleDirList, sampleList)
+	createDir(*outDir, batchDirList, sampleDirList, sampleList)
+	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 
 	// create taskList
 	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
@@ -158,6 +165,8 @@ func main() {
 			for sampleID := range SampleInfo {
 				go task.RunTask(sampleID)
 			}
+		case "batch":
+			go task.RunTask(sampleList...)
 		}
 	}
 
