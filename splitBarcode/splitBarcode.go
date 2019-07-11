@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"strings"
+	"time"
 )
 
 var (
@@ -79,6 +80,7 @@ type Sample struct {
 	F1, F2       *os.File
 	W1, W2       *gzip.Writer
 	hitNum       uint64
+	writeNum     uint64
 	FQ           chan [2]string
 	finish       chan bool
 }
@@ -106,6 +108,7 @@ func (sample *Sample) write() {
 	defer simple_util.DeferClose(sample.F2)
 	defer simple_util.DeferClose(sample.W2)
 	for FQ := range sample.FQ {
+		sample.writeNum++
 		_, err = fmt.Fprintln(sample.W1, FQ[0])
 		simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
 		_, err = fmt.Fprintln(sample.W2, FQ[1])
@@ -113,6 +116,15 @@ func (sample *Sample) write() {
 	}
 	log.Printf("finis %s", sample.SampleID)
 	defer func() { sample.finish <- true }()
+}
+
+func (sample *Sample) close() {
+	for sample.writeNum < sample.hitNum {
+		log.Printf("wait sample[%s] write finish:%d/%d", sample.SampleID, sample.writeNum, sample.hitNum)
+		time.Sleep(1 * time.Second)
+	}
+	log.Printf("wait sample[%s] write done:%d/%d", sample.SampleID, sample.writeNum, sample.hitNum)
+	close(sample.FQ)
 }
 
 func main() {
@@ -223,7 +235,7 @@ func main() {
 
 	// wait close done
 	for _, sample := range SampleInfo {
-		close(sample.FQ)
+		sample.close()
 	}
 
 	if *memprofile != "" {
