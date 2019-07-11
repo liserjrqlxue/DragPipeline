@@ -98,7 +98,7 @@ func (sample *Sample) create(item map[string]string, peKey, outdir string) {
 	sample.FQ = make(chan [2]string)
 }
 
-func (sample *Sample) write(wg sync.WaitGroup) {
+func (sample *Sample) write(wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.Printf("start %s", sample.SampleID)
 	sample.F1, sample.W1 = writeFq(sample.Fq1)
@@ -148,7 +148,7 @@ func main() {
 	var SampleInfo = make(map[string]*Sample)
 	var barcodeMap = make(map[string]string)
 	var FqInfo = make(map[string]*PE)
-	var wg sync.WaitGroup
+	var wg *sync.WaitGroup
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
 		key := strings.Join([]string{item["barcode"], item["fq1"], item["fq2"]}, "\t")
@@ -176,7 +176,7 @@ func main() {
 		}
 	}
 
-	var wg2 sync.WaitGroup
+	var wg2 *sync.WaitGroup
 	for key, pe := range FqInfo {
 		log.Printf("split[%s]", key)
 		var loop = true
@@ -242,7 +242,7 @@ func writeFq(path string) (file *os.File, writer *gzip.Writer) {
 	return
 }
 
-func splitReads(wg2 sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap map[string]string, SampleInfo map[string]*Sample) {
+func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap map[string]string, SampleInfo map[string]*Sample) {
 	defer wg2.Done()
 	readName1 := strings.Split(read1[0], "/")[0]
 	readName2 := strings.Split(read2[0], "/")[0]
