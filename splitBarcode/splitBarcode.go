@@ -214,11 +214,11 @@ func main() {
 		pe.close()
 	}
 	wg2.Wait()
-	log.Printf("split finish")
+	log.Printf("split finish:%d", runtime.NumGoroutine())
 	for i := 0; i < 1e6; i++ {
 		throttle <- true
 	}
-	log.Printf("split finish2")
+	log.Printf("split finish:%d", runtime.NumGoroutine())
 
 	// wait close done
 	for _, sample := range SampleInfo {

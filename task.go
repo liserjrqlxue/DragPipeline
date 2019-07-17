@@ -127,17 +127,17 @@ func (task *Task) RunTask(sampleIDs ...string) {
 	}
 }
 
-func (task *Task) CreateScripts(SampleInfo map[string]map[string]string) {
+func (task *Task) CreateScripts(info Info) {
 	switch task.TaskType {
 	case "sample":
-		task.createSampleScripts(SampleInfo)
+		task.createSampleScripts(info)
 	case "batch":
-		task.createBatchScripts(SampleInfo)
+		task.createBatchScripts(info)
 	}
 }
 
-func (task *Task) createSampleScripts(SampleInfo map[string]map[string]string) {
-	for sampleID, sampleInfo := range SampleInfo {
+func (task *Task) createSampleScripts(info Info) {
+	for sampleID, sampleInfo := range info.Sample {
 		script := filepath.Join(*outDir, sampleID, "shell", task.TaskName+".sh")
 		task.Scripts[sampleID] = script
 		var appendArgs []string
@@ -152,7 +152,7 @@ func (task *Task) createSampleScripts(SampleInfo map[string]map[string]string) {
 	}
 }
 
-func (task *Task) createBatchScripts(SampleInfo map[string]map[string]string) {
+func (task *Task) createBatchScripts(info Info) {
 	script := filepath.Join(*outDir, "shell", task.TaskName+".sh")
 	var appendArgs []string
 	appendArgs = append(appendArgs, *outDir, *localpath)
@@ -164,7 +164,7 @@ func (task *Task) createBatchScripts(SampleInfo map[string]map[string]string) {
 		}
 	}
 	createShell(script, task.TaskScript, appendArgs...)
-	for sampleID := range SampleInfo {
+	for sampleID := range info.Sample {
 		task.Scripts[sampleID] = script
 	}
 }

@@ -74,6 +74,28 @@ var (
 	sep = regexp.MustCompile(`\s+`)
 )
 
+type Info struct {
+	Sample map[string]map[string]string // sample -> barcode
+	Batch  map[string][]string          // barcode -> samples
+}
+
+func parseInput(input string) (info Info) {
+	info = Info{
+		Sample: make(map[string]map[string]string),
+		Batch:  make(map[string][]string),
+	}
+	inputInfo, _ := simple_util.File2MapArray(input, "\t", nil)
+	for _, item := range inputInfo {
+		sampleID := item["sampleID"]
+		barcode := item["barcode"]
+		info.Sample[sampleID] = item
+		samples := info.Batch[barcode]
+		samples = append(samples, sampleID)
+		info.Batch[barcode] = samples
+	}
+	return
+}
+
 func main() {
 	flag.Parse()
 	if *input == "" || *outDir == "" {
@@ -92,16 +114,9 @@ func main() {
 	if *proj != "" {
 		submitArgs = append(submitArgs, "-P", *proj)
 	}
-
-	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
-	var SampleInfo = make(map[string]map[string]string)
-	var sampleList []string
-	for _, item := range inputInfo {
-		sampleID := item["sampleID"]
-		sampleList = append(sampleList, sampleID)
-		SampleInfo[sampleID] = item
-	}
-	createDir(*outDir, batchDirList, sampleDirList, sampleList)
+	info := parseInput(*input)
+	log.Fatalf("%+v", info)
+	createDir(*outDir, batchDirList, sampleDirList, info)
 	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 
 	// create taskList
@@ -111,7 +126,7 @@ func main() {
 		task := createTask(item, *localpath, submitArgs)
 		taskList[task.TaskName] = task
 		// create scripts
-		task.CreateScripts(SampleInfo)
+		task.CreateScripts(info)
 	}
 	var startTask = createStartTask()
 	var endTask = createEndTask()
@@ -126,7 +141,7 @@ func main() {
 				fromTask.End = false
 
 				sampleListChan := make(map[string]*chan string)
-				for sampleID := range SampleInfo {
+				for sampleID := range info.Sample {
 					ch := make(chan string)
 					sampleListChan[sampleID] = &ch
 				}
@@ -136,7 +151,7 @@ func main() {
 			item.TaskFrom = append(item.TaskFrom, startTask)
 
 			sampleListChan := make(map[string]*chan string)
-			for sampleID := range SampleInfo {
+			for sampleID := range info.Sample {
 				ch := make(chan string)
 				sampleListChan[sampleID] = &ch
 			}
@@ -150,7 +165,7 @@ func main() {
 			item.End = false
 
 			sampleListChan := make(map[string]*chan string)
-			for sampleID := range SampleInfo {
+			for sampleID := range info.Sample {
 				ch := make(chan string)
 				sampleListChan[sampleID] = &ch
 			}
@@ -162,11 +177,14 @@ func main() {
 	for _, task := range taskList {
 		switch task.TaskType {
 		case "sample":
-			for sampleID := range SampleInfo {
+			for sampleID := range info.Sample {
 				go task.RunTask(sampleID)
 			}
 		case "batch":
-			go task.RunTask(sampleList...)
+			for _, samples := range info.Batch {
+				go task.RunTask(samples...)
+			}
+
 		}
 	}
 
