@@ -41,6 +41,11 @@ var (
 		"",
 		"mem profile",
 	)
+	maxConcurrency = flag.Int(
+		"maxConcurrency",
+		1000000,
+		"limit of concurrency",
+	)
 )
 
 var err error
@@ -113,6 +118,7 @@ func (sample *Sample) write(wg *sync.WaitGroup) {
 		simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
 		_, err = fmt.Fprintln(sample.W2, FQ[1])
 		simple_util.CheckErr(err, sample.SampleID, "write fq2 error")
+		<-throttle
 	}
 	log.Printf("finis %s", sample.SampleID)
 }
@@ -125,6 +131,8 @@ func (sample *Sample) close() {
 	log.Printf("wait sample[%s] write done:%d/%d\tDone", sample.SampleID, sample.writeNum, sample.hitNum)
 	close(sample.FQ)
 }
+
+var throttle chan bool
 
 func main() {
 	log.Printf("Start:%+v", os.Args)
@@ -143,6 +151,8 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
+
+	throttle = make(chan bool, *maxConcurrency)
 
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
 	var SampleInfo = make(map[string]*Sample)
@@ -177,8 +187,8 @@ func main() {
 	}
 
 	var wg2 sync.WaitGroup
-	for key, pe := range FqInfo {
-		log.Printf("split[%s]", key)
+	for _, pe := range FqInfo {
+		log.Printf("load pe[%s]", pe.Key)
 		var loop = true
 		var read1, read2 [4]string
 		for loop {
@@ -195,6 +205,7 @@ func main() {
 			}
 			pe.peNo++
 			wg2.Add(1)
+			throttle <- true
 			go splitReads(&wg2, read1, read2, pe, barcodeMap, SampleInfo)
 		}
 		simple_util.CheckErr(pe.S1.Err())
@@ -203,6 +214,7 @@ func main() {
 		pe.close()
 	}
 	wg2.Wait()
+	log.Printf("split finish")
 
 	// wait close done
 	for _, sample := range SampleInfo {
