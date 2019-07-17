@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"sync"
@@ -40,11 +41,6 @@ var (
 		"memprofile",
 		"",
 		"mem profile",
-	)
-	maxConcurrency = flag.Int(
-		"maxConcurrency",
-		1000000,
-		"limit of concurrency",
 	)
 )
 
@@ -118,7 +114,6 @@ func (sample *Sample) write(wg *sync.WaitGroup) {
 		simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
 		_, err = fmt.Fprintln(sample.W2, FQ[1])
 		simple_util.CheckErr(err, sample.SampleID, "write fq2 error")
-		<-throttle
 	}
 	log.Printf("finis %s", sample.SampleID)
 }
@@ -132,7 +127,7 @@ func (sample *Sample) close() {
 	close(sample.FQ)
 }
 
-var throttle chan bool
+var n, maxNumGoroutine int
 
 func main() {
 	log.Printf("Start:%+v", os.Args)
@@ -151,8 +146,6 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
-
-	throttle = make(chan bool, *maxConcurrency)
 
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
 	var SampleInfo = make(map[string]*Sample)
@@ -205,7 +198,10 @@ func main() {
 			}
 			pe.peNo++
 			wg2.Add(1)
-			throttle <- true
+			n = runtime.NumGoroutine()
+			if maxNumGoroutine < n {
+				maxNumGoroutine = n
+			}
 			go splitReads(&wg2, read1, read2, pe, barcodeMap, SampleInfo)
 		}
 		simple_util.CheckErr(pe.S1.Err())
@@ -233,6 +229,7 @@ func main() {
 		defer simple_util.DeferClose(f)
 	}
 	log.Printf("End")
+	defer log.Printf("maxGoroutine:%d", maxNumGoroutine)
 }
 
 func readFq(path string) (file *os.File, reader *gzip.Reader, scanner *bufio.Scanner) {
