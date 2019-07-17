@@ -129,6 +129,8 @@ func (sample *Sample) close() {
 
 var n, maxNumGoroutine int
 
+var throttle chan bool
+
 func main() {
 	log.Printf("Start:%+v", os.Args)
 	flag.Parse()
@@ -180,6 +182,7 @@ func main() {
 	}
 
 	var wg2 sync.WaitGroup
+	throttle = make(chan bool, 1e6)
 	for _, pe := range FqInfo {
 		log.Printf("load pe[%s]", pe.Key)
 		var loop = true
@@ -198,6 +201,7 @@ func main() {
 			}
 			pe.peNo++
 			wg2.Add(1)
+			throttle <- true
 			n = runtime.NumGoroutine()
 			if maxNumGoroutine < n {
 				maxNumGoroutine = n
@@ -211,6 +215,10 @@ func main() {
 	}
 	wg2.Wait()
 	log.Printf("split finish")
+	for i := 0; i < 1e6; i++ {
+		throttle <- true
+	}
+	log.Printf("split finish2")
 
 	// wait close done
 	for _, sample := range SampleInfo {
@@ -253,6 +261,7 @@ func writeFq(path string) (file *os.File, writer *gzip.Writer) {
 
 func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap map[string]string, SampleInfo map[string]*Sample) {
 	defer wg2.Done()
+	defer func() { <-throttle }()
 	readName1 := strings.Split(read1[0], "/")[0]
 	readName2 := strings.Split(read2[0], "/")[0]
 	if readName1 != readName2 {
