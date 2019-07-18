@@ -103,8 +103,11 @@ func (task *Task) RunTask(sampleID string) {
 	case "sge":
 		jid = simple_util.SGEsubmit([]string{task.Scripts[sampleID]}, hjid, task.submitArgs)
 	default:
+		throttle <- true
 		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, sampleID, task.Scripts[sampleID])
 		simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleID]))
+		//time.Sleep(10*time.Second)
+		<-throttle
 	}
 	for _, chanMap := range task.TaskToChan {
 		log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, sampleID, jid)
@@ -120,8 +123,11 @@ func (task *Task) RunBatchTask(info Info) {
 	case "sge":
 		jid = simple_util.SGEsubmit([]string{task.BatchScript}, hjid, task.submitArgs)
 	default:
+		throttle <- true
 		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, "batch", task.BatchScript)
 		simple_util.CheckErr(simple_util.RunCmd("bash", task.BatchScript))
+		//time.Sleep(10*time.Second)
+		<-throttle
 	}
 	for _, chanMap := range task.TaskToChan {
 		log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, "batch", jid)

@@ -57,6 +57,16 @@ var (
 		"",
 		"queue for SGE(-q)",
 	)
+	threshold = flag.Int(
+		"threshold",
+		12,
+		"threshold limit for local mode",
+	)
+	logFile = flag.String(
+		"log",
+		"",
+		"output log file",
+	)
 )
 
 var batchDirList = []string{
@@ -101,6 +111,8 @@ func parseInput(input string) (info Info) {
 	return
 }
 
+var throttle chan bool
+
 func main() {
 	flag.Parse()
 	if *input == "" || *outDir == "" {
@@ -108,6 +120,18 @@ func main() {
 		log.Printf("-input and -outdir required")
 		os.Exit(0)
 	}
+
+	if *logFile == "" {
+		*logFile = filepath.Join(*outDir, "log")
+	}
+	logF, err := os.Create(*logFile)
+	simple_util.CheckErr(err)
+	defer simple_util.DeferClose(logF)
+	log.SetOutput(logF)
+	log.SetFlags(log.Ldate | log.Ltime)
+	log.Printf("Log file:%v\n", *logFile)
+
+	throttle = make(chan bool, *threshold)
 
 	var submitArgs []string
 	if *cwd {
@@ -193,4 +217,8 @@ func main() {
 	startTask.Start()
 	// wait finish
 	endTask.WaitEnd()
+
+	for i := 0; i < *threshold; i++ {
+		throttle <- true
+	}
 }
