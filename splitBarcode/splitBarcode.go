@@ -292,5 +292,6 @@ func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap 
 	FQ[0] = strings.Join(read1[:], "\n")
 	FQ[1] = strings.Join(read1[:], "\n")
 	//go func() { sample.FQ <- FQ }()
-	sample.FQ <- FQ
+	//sample.FQ <- FQ
+	go func(sample *Sample) { sample.FQ <- FQ }(sample)
 }
