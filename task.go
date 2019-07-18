@@ -8,19 +8,19 @@ import (
 )
 
 type Task struct {
-	TaskName   string
-	TaskType   string
-	TaskScript string
-	TaskArgs   []string
-	TaskInfo   map[string]string
-	// toTask sample chan
-	TaskToChan map[string]map[string]*chan string
-	TaskFrom   []*Task
-	First, End bool
-	Scripts    map[string]string
-	mem        string
-	thread     string
-	submitArgs []string
+	TaskName    string
+	TaskType    string
+	TaskScript  string
+	TaskArgs    []string
+	TaskInfo    map[string]string
+	TaskToChan  map[string]map[string]*chan string
+	TaskFrom    []*Task
+	First, End  bool
+	Scripts     map[string]string
+	BatchScript string
+	mem         string
+	thread      string
+	submitArgs  []string
 }
 
 func createStartTask() *Task {
@@ -65,7 +65,7 @@ func (task *Task) Start() {
 		for sampleID := range chanMap {
 			ch := chanMap[sampleID]
 			log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", task.TaskName, sampleID, taskName, sampleID)
-			*ch <- ""
+			go func(ch *chan string) { *ch <- "" }(ch)
 		}
 	}
 }
@@ -81,47 +81,51 @@ func (task *Task) WaitEnd() {
 	}
 }
 
-func (task *Task) RunTask(sampleIDs ...string) {
-	var froms []string
+func (task *Task) WaitFrom(sampleIDs ...string) string {
+	var hjid []string
 	for _, fromTask := range task.TaskFrom {
 		for _, sampleID := range sampleIDs {
 			ch := fromTask.TaskToChan[task.TaskName][sampleID]
-			fromInfo := <-*ch
-			froms = append(froms, fromInfo)
+			jid := <-*ch
+			if jid != "" {
+				hjid = append(hjid, jid)
+			}
 		}
 	}
+	return strings.Join(hjid, ",")
+}
 
-	var jid = task.TaskName + "[" + strings.Join(sampleIDs, ",") + "]"
-	log.Printf("Task[%-7s:%+v] <- {%s}", task.TaskName, sampleIDs, strings.Join(froms, ","))
+func (task *Task) RunTask(sampleID string) {
+	var hjid = task.WaitFrom(sampleID)
+	var jid = task.TaskName + "[" + sampleID + "]"
+	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, sampleID, hjid)
 	switch *mode {
 	case "sge":
-		var hjid = strings.Join(froms, ",")
-		var jids []string
-		switch task.TaskType {
-		case "sample":
-			for _, sampleID := range sampleIDs {
-				jids = append(jids, simple_util.SGEsubmit([]string{task.Scripts[sampleID]}, hjid, task.submitArgs))
-			}
-		case "batch":
-			jids = append(jids, simple_util.SGEsubmit([]string{task.Scripts[sampleIDs[0]]}, hjid, task.submitArgs))
-		}
-		jid = strings.Join(jids, ",")
+		jid = simple_util.SGEsubmit([]string{task.Scripts[sampleID]}, hjid, task.submitArgs)
 	default:
-		switch task.TaskType {
-		case "sample":
-			for _, sampleID := range sampleIDs {
-				log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, sampleID, task.Scripts[sampleID])
-				simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleID]))
-			}
-		case "batch":
-			log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, "batch", task.Scripts[sampleIDs[0]])
-			simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleIDs[0]]))
-		}
-
+		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, sampleID, task.Scripts[sampleID])
+		simple_util.CheckErr(simple_util.RunCmd("bash", task.Scripts[sampleID]))
 	}
 	for _, chanMap := range task.TaskToChan {
-		log.Printf("Task[%-7s:%+v] -> %s", task.TaskName, sampleIDs, jid)
-		for _, sampleID := range sampleIDs {
+		log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, sampleID, jid)
+		*chanMap[sampleID] <- jid
+	}
+}
+
+func (task *Task) RunBatchTask(info Info) {
+	var hjid = task.WaitFrom(info.Samples...)
+	var jid = task.TaskName + "[batch]"
+	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, "batch", hjid)
+	switch *mode {
+	case "sge":
+		jid = simple_util.SGEsubmit([]string{task.BatchScript}, hjid, task.submitArgs)
+	default:
+		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, "batch", task.BatchScript)
+		simple_util.CheckErr(simple_util.RunCmd("bash", task.BatchScript))
+	}
+	for _, chanMap := range task.TaskToChan {
+		log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, "batch", jid)
+		for _, sampleID := range info.Samples {
 			*chanMap[sampleID] <- jid
 		}
 	}
@@ -164,7 +168,5 @@ func (task *Task) createBatchScripts(info Info) {
 		}
 	}
 	createShell(script, task.TaskScript, appendArgs...)
-	for sampleID := range info.Sample {
-		task.Scripts[sampleID] = script
-	}
+	task.BatchScript = script
 }

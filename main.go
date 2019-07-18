@@ -118,7 +118,6 @@ func main() {
 		submitArgs = append(submitArgs, "-P", *proj)
 	}
 	info := parseInput(*input)
-	log.Printf("%+v", simple_util.JsonIndent(info, "", "\t"))
 	createDir(*outDir, batchDirList, sampleDirList, info)
 	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 
@@ -184,7 +183,7 @@ func main() {
 				go task.RunTask(sampleID)
 			}
 		case "batch":
-			go task.RunTask(info.Samples...)
+			go task.RunBatchTask(info)
 		}
 	}
 
