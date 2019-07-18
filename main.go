@@ -75,23 +75,26 @@ var (
 )
 
 type Info struct {
-	Sample map[string]map[string]string // sample -> barcode
-	Batch  map[string][]string          // barcode -> samples
+	Sample  map[string]map[string]string // sample -> barcode
+	Barcode map[string][]string          // barcode -> samples
+	Samples []string
 }
 
 func parseInput(input string) (info Info) {
 	info = Info{
-		Sample: make(map[string]map[string]string),
-		Batch:  make(map[string][]string),
+		Sample:  make(map[string]map[string]string),
+		Barcode: make(map[string][]string),
+		Samples: []string{},
 	}
 	inputInfo, _ := simple_util.File2MapArray(input, "\t", nil)
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
 		barcode := item["barcode"]
 		info.Sample[sampleID] = item
-		samples := info.Batch[barcode]
+		samples := info.Barcode[barcode]
 		samples = append(samples, sampleID)
-		info.Batch[barcode] = samples
+		info.Barcode[barcode] = samples
+		info.Samples = append(info.Samples, sampleID)
 	}
 	return
 }
@@ -115,6 +118,7 @@ func main() {
 		submitArgs = append(submitArgs, "-P", *proj)
 	}
 	info := parseInput(*input)
+	log.Printf("%+v", simple_util.JsonIndent(info, "", "\t"))
 	createDir(*outDir, batchDirList, sampleDirList, info)
 	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 
@@ -180,10 +184,7 @@ func main() {
 				go task.RunTask(sampleID)
 			}
 		case "batch":
-			for _, samples := range info.Batch {
-				go task.RunTask(samples...)
-			}
-
+			go task.RunTask(info.Samples...)
 		}
 	}
 
