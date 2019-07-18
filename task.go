@@ -50,7 +50,7 @@ func createTask(cfg map[string]string, local string, submitArgs []string) *Task 
 		Scripts:    make(map[string]string),
 		mem:        cfg["mem"],
 		thread:     cfg["thread"],
-		submitArgs: append(submitArgs, "-l", "vf="+cfg["mem"]+"G,p="+cfg["thread"], cfg["submitArgs"]),
+		submitArgs: append(submitArgs, "-l", "vf="+cfg["mem"]+"G,p="+cfg["thread"]),
 		End:        true,
 	}
 	if cfg["submitArgs"] != "" {

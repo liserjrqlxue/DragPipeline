@@ -61,6 +61,7 @@ var (
 
 var batchDirList = []string{
 	"shell",
+	"javatmp",
 }
 
 var sampleDirList = []string{
@@ -68,6 +69,7 @@ var sampleDirList = []string{
 	"filter",
 	"bwa",
 	"shell",
+	"vcf",
 }
 
 var (
