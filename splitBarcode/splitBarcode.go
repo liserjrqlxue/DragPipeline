@@ -228,6 +228,11 @@ func main() {
 	// wait write done
 	wg.Wait()
 
+	log.Printf("sampleID\thitNum\twritenum\n")
+	for _, sample := range SampleInfo {
+		log.Printf("%s\t%d\t%d\n", sample.SampleID, sample.hitNum, sample.writeNum)
+	}
+
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
 		if err != nil {
