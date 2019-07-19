@@ -53,8 +53,7 @@ type PE struct {
 	R1, R2   *gzip.Reader
 	S1, S2   *bufio.Scanner
 	// current pe
-	peNo   uint64
-	peName string
+	peNo uint64
 }
 
 func (pe *PE) create(key, fq1, fq2 string) {
@@ -274,8 +273,6 @@ func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap 
 	readName2 := strings.Split(read2[0], "/")[0]
 	if readName1 != readName2 {
 		log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
-	} else {
-		pe.peName = readName1
 	}
 	sample1, ok1 := barcodeMap[read1[1][:7]]
 	sample2, ok2 := barcodeMap[read1[1][:7]]
@@ -287,7 +284,7 @@ func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap 
 			"different Samples[%s:%svs%s:%s] from sample PE[%s:%d]",
 			sample1, read1[1][:7],
 			sample2, read2[1][:7],
-			pe.peName, pe.peNo,
+			readName1, pe.peNo,
 		)
 	}
 	sample := SampleInfo[sample1]
