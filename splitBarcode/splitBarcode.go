@@ -73,17 +73,17 @@ func (pe *PE) close() {
 }
 
 type Sample struct {
-	SampleID     string
-	barcode      string
-	pL, pR       string
-	NewpL, NewpR string
-	peKey        string
-	Fq1, Fq2     string
-	F1, F2       *os.File
-	W1, W2       *gzip.Writer
-	hitNum       uint64
-	writeNum     uint64
-	FQ           chan [2]string
+	SampleID             string
+	barcode              string
+	pL, pR               string
+	NewpL, NewpR         string
+	peKey                string
+	Fq1, Fq2             string
+	F1, F2               *os.File
+	W1, W2               *gzip.Writer
+	hitNum, writeNum     uint64
+	hitMutex, writeMutex sync.Mutex
+	FQ                   chan [2]string
 }
 
 func (sample *Sample) create(item map[string]string, peKey, outdir string) {
@@ -109,11 +109,13 @@ func (sample *Sample) write(wg *sync.WaitGroup) {
 	defer simple_util.DeferClose(sample.F2)
 	defer simple_util.DeferClose(sample.W2)
 	for FQ := range sample.FQ {
-		sample.writeNum++
 		_, err = fmt.Fprintln(sample.W1, FQ[0])
 		simple_util.CheckErr(err, sample.SampleID, "write fq1 error")
 		_, err = fmt.Fprintln(sample.W2, FQ[1])
 		simple_util.CheckErr(err, sample.SampleID, "write fq2 error")
+		sample.writeMutex.Lock()
+		sample.writeNum++
+		sample.writeMutex.Unlock()
 	}
 	log.Printf("finis %s", sample.SampleID)
 }
@@ -225,6 +227,7 @@ func main() {
 		go sample.close()
 	}
 
+	log.Printf("wait for done\n")
 	// wait write done
 	wg.Wait()
 
@@ -288,7 +291,6 @@ func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap 
 		)
 	}
 	sample := SampleInfo[sample1]
-	sample.hitNum++
 	read1[1] = read1[1][8:]
 	read2[1] = read2[1][8:]
 	read1[3] = read1[3][8:]
@@ -297,6 +299,10 @@ func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap 
 	FQ[0] = strings.Join(read1[:], "\n")
 	FQ[1] = strings.Join(read2[:], "\n")
 	//go func() { sample.FQ <- FQ }()
-	sample.FQ <- FQ
-	//go func(sample *Sample) { sample.FQ <- FQ }(sample)
+	//sample.FQ <- FQ
+	go func(sample *Sample) { sample.FQ <- FQ }(sample)
+	sample.hitMutex.Lock()
+	sample.hitNum++
+	sample.hitMutex.Unlock()
+
 }
