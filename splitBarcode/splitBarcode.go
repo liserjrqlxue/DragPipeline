@@ -300,9 +300,8 @@ func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap 
 	FQ[1] = strings.Join(read2[:], "\n")
 	//go func() { sample.FQ <- FQ }()
 	//sample.FQ <- FQ
-	go func(sample *Sample) { sample.FQ <- FQ }(sample)
 	sample.hitMutex.Lock()
 	sample.hitNum++
 	sample.hitMutex.Unlock()
-
+	go func(sample *Sample) { sample.FQ <- FQ }(sample)
 }
