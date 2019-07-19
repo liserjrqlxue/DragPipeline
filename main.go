@@ -67,6 +67,11 @@ var (
 		"",
 		"output log file",
 	)
+	dryRun = flag.Bool(
+		"dryRun",
+		false,
+		"dry run for local",
+	)
 )
 
 var batchDirList = []string{
@@ -121,15 +126,16 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *logFile == "" {
-		*logFile = filepath.Join(*outDir, "log")
-	}
-	logF, err := os.Create(*logFile)
-	simple_util.CheckErr(err)
-	defer simple_util.DeferClose(logF)
-	log.SetOutput(logF)
 	log.SetFlags(log.Ldate | log.Ltime)
-	log.Printf("Log file:%v\n", *logFile)
+	if *logFile != "" {
+		//*logFile = filepath.Join(*outDir, "log")
+		os.MkdirAll(filepath.Dir(*logFile), 0755)
+		logF, err := os.Create(*logFile)
+		simple_util.CheckErr(err)
+		defer simple_util.DeferClose(logF)
+		log.SetOutput(logF)
+		log.Printf("Log file:%v\n", *logFile)
+	}
 
 	throttle = make(chan bool, *threshold)
 
@@ -206,10 +212,17 @@ func main() {
 		switch task.TaskType {
 		case "sample":
 			for sampleID := range info.Sample {
-				go task.RunTask(sampleID)
+				//go task.RunSampleTask(sampleID)
+				go task.RunTask(info, sampleID, task.Scripts[sampleID], []string{sampleID})
 			}
 		case "batch":
-			go task.RunBatchTask(info)
+			//go task.RunBatchTask(info)
+			go task.RunTask(info, "batch", task.BatchScript, info.Samples)
+		case "barcode":
+			for barcode := range info.Barcode {
+				//go task.RunBarcodeTask(barcode,info)
+				go task.RunTask(info, barcode, task.BarcodeScripts[barcode], info.Barcode[barcode])
+			}
 		}
 	}
 
@@ -221,4 +234,5 @@ func main() {
 	for i := 0; i < *threshold; i++ {
 		throttle <- true
 	}
+	log.Printf("All Done!")
 }
