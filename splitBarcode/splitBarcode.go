@@ -27,6 +27,21 @@ var (
 		".",
 		"outdir",
 	)
+	fq1 = flag.String(
+		"fq1",
+		"",
+		"fq1",
+	)
+	fq2 = flag.String(
+		"fq2",
+		"",
+		"fq2",
+	)
+	barcode = flag.String(
+		"barcode",
+		"",
+		"barcode",
+	)
 	subDir = flag.String(
 		"subdir",
 		"raw",
@@ -138,9 +153,9 @@ var throttle chan bool
 func main() {
 	log.Printf("Start:%+v", os.Args)
 	flag.Parse()
-	if *input == "" {
+	if *input == "" || *fq1 == "" || *fq2 == "" {
 		flag.Usage()
-		log.Printf("-list required!")
+		log.Printf("-list,-fq1,-fq2 required!")
 		os.Exit(0)
 	}
 
@@ -153,15 +168,16 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
+	key := strings.Join([]string{*barcode, *fq1, *fq2}, "\t")
+	pe := &PE{}
+	pe.create(*barcode, key, *fq1, *fq2)
+
 	inputInfo, _ := simple_util.File2MapArray(*input, "\t", nil)
 	var SampleInfo = make(map[string]*Sample)
 	var barcodeMap = make(map[string]string)
-	var FqInfo = make(map[string]*PE)
 	var wg sync.WaitGroup
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
-		key := strings.Join([]string{item["barcode"], item["fq1"], item["fq2"]}, "\t")
-
 		// SampleInfo
 		sample, ok := SampleInfo[sampleID]
 		if ok {
@@ -174,71 +190,59 @@ func main() {
 			go sample.write(&wg)
 		}
 		barcodeMap[sample.NewPrimer] = sampleID
-
-		// FqInfo
-		pe, ok := FqInfo[key]
-		if !ok {
-			pe = &PE{}
-			pe.create(item["barcode"], key, item["fq1"], item["fq2"])
-			FqInfo[key] = pe
-		}
 	}
 
-	var wg2 sync.WaitGroup
 	throttle = make(chan bool, 1e6)
-	for _, pe := range FqInfo {
-		log.Printf("load pe[%s]", pe.Key)
-		var loop = true
-		var read1, read2 [4]string
-		for loop {
-			for i := 0; i < 4; i++ {
-				loop = pe.S1.Scan() && pe.S2.Scan()
-				if !loop {
-					break
-				}
-				read1[i] = pe.S1.Text()
-				read2[i] = pe.S2.Text()
-			}
+	log.Printf("load pe[%s]", pe.Key)
+	var loop = true
+	var read1, read2 [4]string
+	for loop {
+		for i := 0; i < 4; i++ {
+			loop = pe.S1.Scan() && pe.S2.Scan()
 			if !loop {
 				break
 			}
-			pe.peNo++
-			wg2.Add(1)
-			throttle <- true
-			n = runtime.NumGoroutine()
-			if maxNumGoroutine < n {
-				maxNumGoroutine = n
-			}
-			readName1 := strings.Split(read1[0], "/")[0]
-			readName2 := strings.Split(read2[0], "/")[0]
-			if readName1 != readName2 {
-				log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
-			}
-			sample1, ok1 := barcodeMap[read1[1][:7]]
-			sample2, ok2 := barcodeMap[read1[1][:7]]
-			if ok1 && ok2 {
-				if sample1 != sample2 {
-					pe.diffIndex++
-					<-throttle
-				} else {
-					pe.hitNo++
-					sample := SampleInfo[sample1]
-					go splitReads(&wg2, read1, read2, sample)
-				}
-			} else if ok1 || ok2 {
-				pe.singleIndex++
+			read1[i] = pe.S1.Text()
+			read2[i] = pe.S2.Text()
+		}
+		if !loop {
+			break
+		}
+		pe.peNo++
+		throttle <- true
+		n = runtime.NumGoroutine()
+		if maxNumGoroutine < n {
+			maxNumGoroutine = n
+		}
+		readName1 := strings.Split(read1[0], "/")[0]
+		readName2 := strings.Split(read2[0], "/")[0]
+		if readName1 != readName2 {
+			log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
+		}
+		sample1, ok1 := barcodeMap[read1[1][:7]]
+		sample2, ok2 := barcodeMap[read1[1][:7]]
+		if ok1 && ok2 {
+			if sample1 != sample2 {
+				pe.diffIndex++
 				<-throttle
 			} else {
-				pe.nonIndex++
-				<-throttle
+				pe.hitNo++
+				sample := SampleInfo[sample1]
+				go splitReads(read1, read2, sample)
 			}
+		} else if ok1 || ok2 {
+			pe.singleIndex++
+			<-throttle
+		} else {
+			pe.nonIndex++
+			<-throttle
 		}
-		simple_util.CheckErr(pe.S1.Err())
-		simple_util.CheckErr(pe.S2.Err())
-		log.Printf("close pe[%s]", pe.Key)
-		pe.close()
 	}
-	wg2.Wait()
+	simple_util.CheckErr(pe.S1.Err())
+	simple_util.CheckErr(pe.S2.Err())
+	log.Printf("close pe[%s]", pe.Key)
+	pe.close()
+
 	log.Printf("split finish:%d", runtime.NumGoroutine())
 	for i := 0; i < 1e6; i++ {
 		throttle <- true
@@ -270,9 +274,7 @@ func main() {
 	log.Printf("End")
 	defer log.Printf("maxGoroutine:%d", maxNumGoroutine)
 	fmt.Println(strings.Join([]string{"Barcode", "拆之前reads num", "两端相同index", "两端不同index", "只有一端有index", "两端都没有index", "有效数据利用率"}, "\t"))
-	for _, pe := range FqInfo {
-		fmt.Printf("%s\t%d\t%d\t%d\t%d\t%d\t%f\n", pe.barcode, pe.peNo, pe.hitNo, pe.diffIndex, pe.singleIndex, pe.nonIndex, float64(pe.hitNo/pe.peNo))
-	}
+	fmt.Printf("%s\t%d\t%d\t%d\t%d\t%d\t%f\n", pe.barcode, pe.peNo, pe.hitNo, pe.diffIndex, pe.singleIndex, pe.nonIndex, float64(pe.hitNo/pe.peNo))
 }
 
 func readFq(path string) (file *os.File, reader *gzip.Reader, scanner *bufio.Scanner) {
@@ -294,8 +296,7 @@ func writeFq(path string) (file *os.File, writer *gzip.Writer) {
 	return
 }
 
-func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, sample *Sample) {
-	defer wg2.Done()
+func splitReads(read1, read2 [4]string, sample *Sample) {
 	defer func() { <-throttle }()
 	read1[1] = read1[1][8:]
 	read2[1] = read2[1][8:]
