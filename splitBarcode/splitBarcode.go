@@ -47,16 +47,19 @@ var (
 var err error
 
 type PE struct {
+	barcode  string
 	Key      string
 	Fq1, Fq2 string
 	F1, F2   *os.File
 	R1, R2   *gzip.Reader
 	S1, S2   *bufio.Scanner
 	// current pe
-	peNo uint64
+	peNo, hitNo, diffIndex, singleIndex, nonIndex uint64
+	mutex                                         sync.Mutex
 }
 
-func (pe *PE) create(key, fq1, fq2 string) {
+func (pe *PE) create(barcode, key, fq1, fq2 string) {
+	pe.barcode = barcode
 	pe.Key = key
 	pe.Fq1 = fq1
 	pe.Fq2 = fq2
@@ -74,8 +77,8 @@ func (pe *PE) close() {
 type Sample struct {
 	SampleID                     string
 	barcode                      string
-	pL, pR                       string
-	NewpL, NewpR                 string
+	primer                       string
+	NewPrimer                    string
 	peKey                        string
 	Fq1, Fq2                     string
 	F1, F2                       *os.File
@@ -87,10 +90,8 @@ type Sample struct {
 
 func (sample *Sample) create(item map[string]string, peKey, outdir string) {
 	sample.SampleID = item["sampleID"]
-	sample.pL = item["pL"]
-	sample.pR = item["pR"]
-	sample.NewpL = sample.pL[:7]
-	sample.NewpR = sample.pR[:7]
+	sample.primer = item["primer"]
+	sample.NewPrimer = sample.primer[:7]
 	sample.peKey = peKey
 	simple_util.CheckErr(os.MkdirAll(outdir, 0755))
 	sample.Fq1 = filepath.Join(outdir, sample.SampleID+".raw_1.fq.gz")
@@ -172,14 +173,13 @@ func main() {
 			wg.Add(1)
 			go sample.write(&wg)
 		}
-		barcodeMap[sample.NewpL] = sampleID
-		barcodeMap[sample.NewpR] = sampleID
+		barcodeMap[sample.NewPrimer] = sampleID
 
 		// FqInfo
 		pe, ok := FqInfo[key]
 		if !ok {
 			pe = &PE{}
-			pe.create(key, item["fq1"], item["fq2"])
+			pe.create(item["barcode"], key, item["fq1"], item["fq2"])
 			FqInfo[key] = pe
 		}
 	}
@@ -247,6 +247,10 @@ func main() {
 	}
 	log.Printf("End")
 	defer log.Printf("maxGoroutine:%d", maxNumGoroutine)
+	fmt.Println(strings.Join([]string{"Barcode", "拆之前reads num", "两端相同index", "两端不同index", "只有一端有index", "两端都没有index", "有效数据利用率"}, "\t"))
+	for _, pe := range FqInfo {
+		fmt.Printf("%s\t%d\t%d\t%d\t%d\t%d\t%f\n", pe.barcode, pe.peNo, pe.hitNo, pe.diffIndex, pe.singleIndex, pe.nonIndex, pe.hitNo/pe.peNo)
+	}
 }
 
 func readFq(path string) (file *os.File, reader *gzip.Reader, scanner *bufio.Scanner) {
@@ -278,17 +282,22 @@ func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap 
 	}
 	sample1, ok1 := barcodeMap[read1[1][:7]]
 	sample2, ok2 := barcodeMap[read1[1][:7]]
-	if !ok1 || !ok2 {
+	pe.mutex.Lock()
+	if ok1 && ok2 {
+		if sample1 != sample2 {
+			pe.diffIndex++
+			return
+		} else {
+			pe.hitNo++
+		}
+	} else if ok1 || ok2 {
+		pe.singleIndex++
+		return
+	} else {
+		pe.nonIndex++
 		return
 	}
-	if sample1 != sample2 {
-		log.Fatalf(
-			"different Samples[%s:%svs%s:%s] from sample PE[%s:%d]",
-			sample1, read1[1][:7],
-			sample2, read2[1][:7],
-			readName1, pe.peNo,
-		)
-	}
+	pe.mutex.Unlock()
 	sample := SampleInfo[sample1]
 	read1[1] = read1[1][8:]
 	read2[1] = read2[1][8:]
