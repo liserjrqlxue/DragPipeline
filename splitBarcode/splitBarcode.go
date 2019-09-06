@@ -209,7 +209,26 @@ func main() {
 			if maxNumGoroutine < n {
 				maxNumGoroutine = n
 			}
-			go splitReads(&wg2, read1, read2, pe, barcodeMap, SampleInfo)
+			readName1 := strings.Split(read1[0], "/")[0]
+			readName2 := strings.Split(read2[0], "/")[0]
+			if readName1 != readName2 {
+				log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
+			}
+			sample1, ok1 := barcodeMap[read1[1][:7]]
+			sample2, ok2 := barcodeMap[read1[1][:7]]
+			if ok1 && ok2 {
+				if sample1 != sample2 {
+					pe.diffIndex++
+				} else {
+					pe.hitNo++
+					sample := SampleInfo[sample1]
+					go splitReads(&wg2, read1, read2, pe, barcodeMap, sample)
+				}
+			} else if ok1 || ok2 {
+				pe.singleIndex++
+			} else {
+				pe.nonIndex++
+			}
 		}
 		simple_util.CheckErr(pe.S1.Err())
 		simple_util.CheckErr(pe.S2.Err())
@@ -272,33 +291,9 @@ func writeFq(path string) (file *os.File, writer *gzip.Writer) {
 	return
 }
 
-func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap map[string]string, SampleInfo map[string]*Sample) {
+func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap map[string]string, sample *Sample) {
 	defer wg2.Done()
 	defer func() { <-throttle }()
-	readName1 := strings.Split(read1[0], "/")[0]
-	readName2 := strings.Split(read2[0], "/")[0]
-	if readName1 != readName2 {
-		log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
-	}
-	sample1, ok1 := barcodeMap[read1[1][:7]]
-	sample2, ok2 := barcodeMap[read1[1][:7]]
-	pe.mutex.Lock()
-	if ok1 && ok2 {
-		if sample1 != sample2 {
-			pe.diffIndex++
-			return
-		} else {
-			pe.hitNo++
-		}
-	} else if ok1 || ok2 {
-		pe.singleIndex++
-		return
-	} else {
-		pe.nonIndex++
-		return
-	}
-	pe.mutex.Unlock()
-	sample := SampleInfo[sample1]
 	read1[1] = read1[1][8:]
 	read2[1] = read2[1][8:]
 	read1[3] = read1[3][8:]
