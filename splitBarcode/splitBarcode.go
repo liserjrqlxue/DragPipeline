@@ -274,7 +274,7 @@ func main() {
 	log.Printf("End")
 	defer log.Printf("maxGoroutine:%d", maxNumGoroutine)
 	fmt.Println(strings.Join([]string{"Barcode", "拆之前reads num", "两端相同index", "两端不同index", "只有一端有index", "两端都没有index", "有效数据利用率"}, "\t"))
-	fmt.Printf("%s\t%d\t%d\t%d\t%d\t%d\t%f\n", pe.barcode, pe.peNo, pe.hitNo, pe.diffIndex, pe.singleIndex, pe.nonIndex, float64(pe.hitNo/pe.peNo))
+	fmt.Printf("%s\t%d\t%d\t%d\t%d\t%d\t%f\n", pe.barcode, pe.peNo, pe.hitNo, pe.diffIndex, pe.singleIndex, pe.nonIndex, float64(pe.hitNo)/float64(pe.peNo))
 }
 
 func readFq(path string) (file *os.File, reader *gzip.Reader, scanner *bufio.Scanner) {
