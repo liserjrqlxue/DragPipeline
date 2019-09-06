@@ -180,7 +180,7 @@ func (task *Task) createBatchScripts(info Info) {
 
 func (task *Task) createBarcodeScripts(info Info) {
 	for barcode, barcodeInfo := range info.BarcodeMap {
-		script := filepath.Join(*outDir, "shell", strings.Join([]string{barcode, task.TaskName, "sh"}, "."))
+		script := filepath.Join(*outDir, "shell", strings.Join([]string{"barcode", barcode, task.TaskName, "sh"}, "."))
 		task.BarcodeScripts[barcode] = script
 		var appendArgs []string
 		appendArgs = append(appendArgs, *outDir, *localpath)
