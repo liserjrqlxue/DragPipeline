@@ -222,7 +222,7 @@ func main() {
 				} else {
 					pe.hitNo++
 					sample := SampleInfo[sample1]
-					go splitReads(&wg2, read1, read2, pe, barcodeMap, sample)
+					go splitReads(&wg2, read1, read2, sample)
 				}
 			} else if ok1 || ok2 {
 				pe.singleIndex++
@@ -291,7 +291,7 @@ func writeFq(path string) (file *os.File, writer *gzip.Writer) {
 	return
 }
 
-func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, pe *PE, barcodeMap map[string]string, sample *Sample) {
+func splitReads(wg2 *sync.WaitGroup, read1, read2 [4]string, sample *Sample) {
 	defer wg2.Done()
 	defer func() { <-throttle }()
 	read1[1] = read1[1][8:]
