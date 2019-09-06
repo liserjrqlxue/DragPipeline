@@ -29,7 +29,7 @@ func createDir(workDir string, batchDirList, sampleDirList []string, info Info) 
 			),
 		)
 	}
-	for sampleID := range info.Sample {
+	for sampleID := range info.SampleMap {
 		for _, subDir := range sampleDirList {
 			simple_util.CheckErr(
 				os.MkdirAll(

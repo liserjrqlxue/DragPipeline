@@ -148,7 +148,7 @@ func (task *Task) CreateScripts(info Info) {
 }
 
 func (task *Task) createSampleScripts(info Info) {
-	for sampleID, sampleInfo := range info.Sample {
+	for sampleID, sampleInfo := range info.SampleMap {
 		script := filepath.Join(*outDir, sampleID, "shell", task.TaskName+".sh")
 		task.Scripts[sampleID] = script
 		var appendArgs []string
@@ -156,7 +156,7 @@ func (task *Task) createSampleScripts(info Info) {
 		for _, arg := range task.TaskArgs {
 			switch arg {
 			default:
-				appendArgs = append(appendArgs, sampleInfo[arg])
+				appendArgs = append(appendArgs, sampleInfo.info[arg])
 			}
 		}
 		createShell(script, task.TaskScript, appendArgs...)
@@ -179,7 +179,7 @@ func (task *Task) createBatchScripts(info Info) {
 }
 
 func (task *Task) createBarcodeScripts(info Info) {
-	for barcode := range info.Barcode {
+	for barcode := range info.BarcodeMap {
 		script := filepath.Join(*outDir, "shell", strings.Join([]string{barcode, task.TaskName, "sh"}, "."))
 		task.BarcodeScripts[barcode] = script
 		var appendArgs []string
