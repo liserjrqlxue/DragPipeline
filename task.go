@@ -192,6 +192,8 @@ func (task *Task) createBarcodeScripts(info Info) {
 				appendArgs = append(appendArgs, barcodeInfo.fq1)
 			case "fq2":
 				appendArgs = append(appendArgs, barcodeInfo.fq2)
+			case "list":
+				appendArgs = append(appendArgs, barcodeInfo.list)
 			}
 		}
 		createShell(script, task.TaskScript, appendArgs...)
