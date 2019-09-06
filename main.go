@@ -92,16 +92,35 @@ var (
 )
 
 type Info struct {
-	Sample  map[string]map[string]string // sample -> barcode
-	Barcode map[string][]string          // barcode -> samples
-	Samples []string
+	Sample     map[string]map[string]string // sample -> barcode
+	Barcode    map[string][]string          // barcode -> samples
+	Samples    []string
+	SampleMap  map[string]*Sample
+	BarcodeMap map[string]*Barcode
 }
 
-func parseInput(input string) (info Info) {
+type Barcode struct {
+	barcode string
+	list    string
+	fq1     string
+	fq2     string
+	samples map[string]*Sample
+}
+
+type Sample struct {
+	sampleID  string
+	sampleNum string
+	barcode   string
+	primer    string
+}
+
+func parseInput(input, outDir string) (info Info) {
 	info = Info{
-		Sample:  make(map[string]map[string]string),
-		Barcode: make(map[string][]string),
-		Samples: []string{},
+		Sample:     make(map[string]map[string]string),
+		Barcode:    make(map[string][]string),
+		Samples:    []string{},
+		SampleMap:  make(map[string]*Sample),
+		BarcodeMap: make(map[string]*Barcode),
 	}
 	inputInfo, _ := simple_util.File2MapArray(input, "\t", nil)
 	for _, item := range inputInfo {
@@ -112,6 +131,37 @@ func parseInput(input string) (info Info) {
 		samples = append(samples, sampleID)
 		info.Barcode[barcode] = samples
 		info.Samples = append(info.Samples, sampleID)
+
+		fq1 := item["fq1"]
+		fq2 := item["fq2"]
+		sampleNum := item["sampleNum"]
+		primer := item["primer"]
+
+		sampleInfo, ok := info.SampleMap[sampleID]
+		if !ok {
+			sampleInfo = &Sample{
+				sampleID:  sampleID,
+				sampleNum: sampleNum,
+				barcode:   barcode,
+				primer:    primer,
+			}
+			info.SampleMap[sampleID] = sampleInfo
+		} else {
+			log.Fatal("dup sampleID:", sampleID)
+		}
+
+		barcodeInfo, ok := info.BarcodeMap[barcode]
+		if !ok {
+			barcodeInfo = &Barcode{
+				barcode: barcode,
+				list:    filepath.Join(outDir, "barcode", "barcode."+barcode+".list"),
+				fq1:     fq1,
+				fq2:     fq2,
+				samples: make(map[string]*Sample),
+			}
+			info.BarcodeMap[barcode] = barcodeInfo
+		}
+		barcodeInfo.samples[sampleID] = sampleInfo
 	}
 	return
 }
@@ -129,7 +179,7 @@ func main() {
 	log.SetFlags(log.Ldate | log.Ltime)
 	if *logFile != "" {
 		//*logFile = filepath.Join(*outDir, "log")
-		os.MkdirAll(filepath.Dir(*logFile), 0755)
+		simple_util.CheckErr(os.MkdirAll(filepath.Dir(*logFile), 0755))
 		logF, err := os.Create(*logFile)
 		simple_util.CheckErr(err)
 		defer simple_util.DeferClose(logF)
@@ -149,7 +199,7 @@ func main() {
 	if *proj != "" {
 		submitArgs = append(submitArgs, "-P", *proj)
 	}
-	info := parseInput(*input)
+	info := parseInput(*input, *outDir)
 	createDir(*outDir, batchDirList, sampleDirList, info)
 	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 
