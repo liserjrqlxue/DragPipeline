@@ -148,7 +148,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		pprof.StartCPUProfile(f)
+		simple_util.CheckErr(pprof.StartCPUProfile(f))
 		defer pprof.StopCPUProfile()
 	}
 
@@ -242,7 +242,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		pprof.WriteHeapProfile(f)
+		simple_util.CheckErr(pprof.WriteHeapProfile(f))
 		defer simple_util.DeferClose(f)
 	}
 	log.Printf("End")
