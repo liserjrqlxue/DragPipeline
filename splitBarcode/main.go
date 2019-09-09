@@ -128,7 +128,7 @@ func main() {
 			log.Fatalf("PE:%d[%s!=%s]", pe.peNo, readName1, readName2)
 		}
 		sample1, ok1 := barcodeMap[read1[1][:7]]
-		sample2, ok2 := barcodeMap[read1[1][:7]]
+		sample2, ok2 := barcodeMap[read2[1][:7]]
 		if ok1 && ok2 {
 			if sample1 != sample2 {
 				pe.diffIndex++
@@ -161,6 +161,7 @@ func main() {
 	for _, sample := range SampleInfo {
 		go sample.close()
 	}
+	log.Printf("split finish:%d", runtime.NumGoroutine())
 
 	log.Printf("wait for done\n")
 	// wait write done
@@ -172,12 +173,7 @@ func main() {
 	}
 
 	if *memProfile != "" {
-		f, err := os.Create(*memProfile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		simpleUtil.CheckErr(pprof.WriteHeapProfile(f))
-		defer simpleUtil.DeferClose(f)
+		simpleUtil.MemProfile(*memProfile)
 	}
 	log.Printf("End")
 	defer log.Printf("maxGoroutine:%d", maxNumGoroutine)
