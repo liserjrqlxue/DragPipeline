@@ -30,6 +30,7 @@ func createStartTask() *Task {
 		TaskName:   "Start",
 		TaskToChan: make(map[string]map[string]*chan string),
 		First:      true,
+		TaskType:   "batch",
 	}
 }
 
@@ -38,6 +39,7 @@ func createEndTask() *Task {
 		TaskName:   "End",
 		TaskToChan: make(map[string]map[string]*chan string),
 		End:        true,
+		TaskType:   "batch",
 	}
 }
 
@@ -65,9 +67,23 @@ func createTask(cfg map[string]string, local string, submitArgs []string) *Task 
 func (task *Task) Start() {
 	for taskName, chanMap := range task.TaskToChan {
 		log.Printf("%-7s -> Task[%-7s]", task.TaskName, taskName)
+		nextTask := taskList[taskName]
+		var router = task.TaskType + "->" + nextTask.TaskType
+		switch router {
+		case "batch->batch":
+			log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", task.TaskName, "batch", taskName, "batch")
+		case "batch->barcode":
+			for barcode := range info.BarcodeMap {
+				log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", task.TaskName, "batch", taskName, barcode)
+
+			}
+		case "batch->sample":
+			for sampleID := range chanMap {
+				log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", task.TaskName, "batch", taskName, sampleID)
+			}
+		}
 		for sampleID := range chanMap {
 			ch := chanMap[sampleID]
-			log.Printf("Task[%-7s:%s] -> Task[%-7s:%s]", task.TaskName, sampleID, taskName, sampleID)
 			go func(ch *chan string) { *ch <- "" }(ch)
 		}
 	}
