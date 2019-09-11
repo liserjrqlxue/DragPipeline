@@ -171,6 +171,9 @@ func parseInput(input, outDir string) (info Info) {
 
 var throttle chan bool
 
+var taskList = make(map[string]*Task)
+var info Info
+
 func main() {
 	flag.Parse()
 	if *input == "" || *outDir == "" {
@@ -202,13 +205,13 @@ func main() {
 	if *proj != "" {
 		submitArgs = append(submitArgs, "-P", *proj)
 	}
-	info := parseInput(*input, *outDir)
+	info = parseInput(*input, *outDir)
 	createDir(*outDir, batchDirList, sampleDirList, info)
 	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 
 	// create taskList
 	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
-	var taskList = make(map[string]*Task)
+
 	for _, item := range cfgInfo {
 		task := createTask(item, *localpath, submitArgs)
 		taskList[task.TaskName] = task
@@ -229,7 +232,7 @@ func main() {
 
 				sampleListChan := make(map[string]*chan string)
 				for sampleID := range info.SampleMap {
-					ch := make(chan string)
+					ch := make(chan string, 1)
 					sampleListChan[sampleID] = &ch
 				}
 				fromTask.TaskToChan[taskName] = sampleListChan
@@ -239,7 +242,7 @@ func main() {
 
 			sampleListChan := make(map[string]*chan string)
 			for sampleID := range info.SampleMap {
-				ch := make(chan string)
+				ch := make(chan string, 1)
 				sampleListChan[sampleID] = &ch
 			}
 			startTask.TaskToChan[taskName] = sampleListChan
@@ -253,7 +256,7 @@ func main() {
 
 			sampleListChan := make(map[string]*chan string)
 			for sampleID := range info.SampleMap {
-				ch := make(chan string)
+				ch := make(chan string, 1)
 				sampleListChan[sampleID] = &ch
 			}
 			item.TaskToChan[endTask.TaskName] = sampleListChan
