@@ -92,18 +92,16 @@ var (
 )
 
 type Info struct {
-	Samples    []string
 	SampleMap  map[string]*Sample
 	BarcodeMap map[string]*Barcode
 }
 
 type Barcode struct {
-	barcode    string
-	list       string
-	fq1        string
-	fq2        string
-	samples    map[string]*Sample
-	sampleList []string
+	barcode string
+	list    string
+	fq1     string
+	fq2     string
+	samples map[string]*Sample
 }
 
 type Sample struct {
@@ -116,7 +114,6 @@ type Sample struct {
 
 func parseInput(input, outDir string) (info Info) {
 	info = Info{
-		Samples:    []string{},
 		SampleMap:  make(map[string]*Sample),
 		BarcodeMap: make(map[string]*Barcode),
 	}
@@ -124,7 +121,6 @@ func parseInput(input, outDir string) (info Info) {
 	for _, item := range inputInfo {
 		sampleID := item["sampleID"]
 		barcode := item["barcode"]
-		info.Samples = append(info.Samples, sampleID)
 
 		fq1 := item["fq1"]
 		fq2 := item["fq2"]
@@ -157,14 +153,6 @@ func parseInput(input, outDir string) (info Info) {
 			info.BarcodeMap[barcode] = barcodeInfo
 		}
 		barcodeInfo.samples[sampleID] = sampleInfo
-	}
-
-	for _, barcodeInfo := range info.BarcodeMap {
-		var sampleList []string
-		for sampleID := range barcodeInfo.samples {
-			sampleList = append(sampleList, sampleID)
-		}
-		barcodeInfo.sampleList = sampleList
 	}
 	return
 }
