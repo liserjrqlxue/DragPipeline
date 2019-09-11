@@ -235,6 +235,12 @@ func main() {
 					ch := make(chan string, 1)
 					sampleListChan[sampleID] = &ch
 				}
+				for barcode := range info.BarcodeMap {
+					ch := make(chan string, 1)
+					sampleListChan[barcode] = &ch
+				}
+				ch := make(chan string, 1)
+				sampleListChan["batch"] = &ch
 				fromTask.TaskToChan[taskName] = sampleListChan
 			}
 		} else {
@@ -245,6 +251,12 @@ func main() {
 				ch := make(chan string, 1)
 				sampleListChan[sampleID] = &ch
 			}
+			for barcode := range info.BarcodeMap {
+				ch := make(chan string, 1)
+				sampleListChan[barcode] = &ch
+			}
+			ch := make(chan string, 1)
+			sampleListChan["batch"] = &ch
 			startTask.TaskToChan[taskName] = sampleListChan
 		}
 	}
@@ -259,6 +271,12 @@ func main() {
 				ch := make(chan string, 1)
 				sampleListChan[sampleID] = &ch
 			}
+			for barcode := range info.BarcodeMap {
+				ch := make(chan string, 1)
+				sampleListChan[barcode] = &ch
+			}
+			ch := make(chan string, 1)
+			sampleListChan["batch"] = &ch
 			item.TaskToChan[endTask.TaskName] = sampleListChan
 		}
 	}
@@ -272,8 +290,7 @@ func main() {
 				go task.RunTask(info, sampleID, task.Scripts[sampleID], "", []string{sampleID})
 			}
 		case "batch":
-			//go task.RunBatchTask(info)
-			go task.RunTask(info, "batch", task.BatchScript, "", info.Samples)
+			go task.RunBatchTask(info)
 		case "barcode":
 			for barcode, barcodeInfo := range info.BarcodeMap {
 				//go task.RunBarcodeTask(barcode,info)

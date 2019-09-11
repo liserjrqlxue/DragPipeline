@@ -91,9 +91,18 @@ func (task *Task) Start() {
 
 func (task *Task) WaitEnd() {
 	for _, fromTask := range task.TaskFrom {
-		for taskName, chanMap := range fromTask.TaskToChan {
-			for sampleID := range chanMap {
-				log.Printf("Task[%-7s:%s] <- %s", taskName, sampleID, <-*chanMap[sampleID])
+		var router = fromTask.TaskType + "->" + task.TaskType
+		chanMap := fromTask.TaskToChan[task.TaskName]
+		switch router {
+		case "batch->batch":
+			log.Printf("Task[%-7s:%s] <- %s", task.TaskName, "batch", <-*chanMap["batch"])
+		case "barcode->batch":
+			for barcode := range info.BarcodeMap {
+				log.Printf("Task[%-7s:%s] <- %s", task.TaskName, "batch", <-*chanMap[barcode])
+			}
+		case "sample->batch":
+			for sampleID := range info.SampleMap {
+				log.Printf("Task[%-7s:%s] <- %s", task.TaskName, "batch", <-*chanMap[sampleID])
 			}
 		}
 		log.Printf("%-7s <- Task[%-7s]", task.TaskName, fromTask.TaskName)
@@ -145,8 +154,10 @@ func (task *Task) SetEnd(info Info, jobName, jid, barcode string, sampleList []s
 		switch router {
 		case "batch":
 			log.Printf("Task[%-7s:%s] -> {%s}}", task.TaskName, "batch", jid)
+			*chanMap["batch"] <- jid
 		case "barcode":
 			log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, barcode, jid)
+			*chanMap[barcode] <- jid
 		case "sample":
 			for _, sampleID := range sampleList {
 				log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, sampleID, jid)
@@ -164,6 +175,52 @@ func (task *Task) RunTask(info Info, jobName, script, barcode string, sampleList
 	var jid = task.TaskName + "[" + jobName + "]"
 	jid = task.Run(script, hjid, jobName, jid)
 	task.SetEnd(info, jobName, jid, barcode, sampleList)
+}
+
+func (task *Task) RunBatchTask(info Info) {
+	var hjid = task.BatchWaitFrom(info)
+	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, "batch", hjid)
+	var jid = task.TaskName + "[batch]"
+	jid = task.Run(task.BatchScript, hjid, "batch", jid)
+	task.SetEnd(info, "batch", jid, "", info.Samples)
+}
+
+func (task *Task) BatchWaitFrom(info Info) string {
+	sampleIDs := info.Samples
+	var hjid = make(map[string]bool)
+	for _, fromTask := range task.TaskFrom {
+		var router = fromTask.TaskType
+		switch router {
+		case "batch":
+			ch := fromTask.TaskToChan[task.TaskName]["batch"]
+			jid := <-*ch
+			if jid != "" {
+				hjid[jid] = true
+			}
+		case "barcode":
+			for barcode := range info.BarcodeMap {
+				ch := fromTask.TaskToChan[task.TaskName][barcode]
+				jid := <-*ch
+				if jid != "" {
+					hjid[jid] = true
+				}
+			}
+		case "sample":
+			for _, sampleID := range sampleIDs {
+				ch := fromTask.TaskToChan[task.TaskName][sampleID]
+				jid := <-*ch
+				if jid != "" {
+					hjid[jid] = true
+				}
+			}
+		}
+
+	}
+	var jid []string
+	for id := range hjid {
+		jid = append(jid, id)
+	}
+	return strings.Join(jid, ",")
 }
 
 func (task *Task) CreateScripts(info Info) {
