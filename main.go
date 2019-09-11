@@ -269,11 +269,11 @@ func main() {
 		case "sample":
 			for sampleID := range info.SampleMap {
 				//go task.RunSampleTask(sampleID)
-				go task.RunTask(info, sampleID, task.Scripts[sampleID], []string{sampleID})
+				go task.RunTask(info, sampleID, task.Scripts[sampleID], "", []string{sampleID})
 			}
 		case "batch":
 			//go task.RunBatchTask(info)
-			go task.RunTask(info, "batch", task.BatchScript, info.Samples)
+			go task.RunTask(info, "batch", task.BatchScript, "", info.Samples)
 		case "barcode":
 			for barcode, barcodeInfo := range info.BarcodeMap {
 				//go task.RunBarcodeTask(barcode,info)
@@ -281,7 +281,7 @@ func main() {
 				for sampleID := range barcodeInfo.samples {
 					sampleList = append(sampleList, sampleID)
 				}
-				go task.RunTask(info, barcode, task.BarcodeScripts[barcode], barcodeInfo.sampleList)
+				go task.RunTask(info, barcode, task.BarcodeScripts[barcode], barcode, barcodeInfo.sampleList)
 			}
 		}
 	}

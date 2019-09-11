@@ -139,21 +139,31 @@ func (task *Task) Run(script, hjid, jobName, jid string) string {
 	return jid
 }
 
-func (task *Task) SetEnd(info Info, jobName, jid string, sampleList []string) {
+func (task *Task) SetEnd(info Info, jobName, jid, barcode string, sampleList []string) {
 	for _, chanMap := range task.TaskToChan {
+		var router = task.TaskType
+		switch router {
+		case "batch":
+			log.Printf("Task[%-7s:%s] -> {%s}}", task.TaskName, "batch", jid)
+		case "barcode":
+			log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, barcode, jid)
+		case "sample":
+			for _, sampleID := range sampleList {
+				log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, sampleID, jid)
+			}
+		}
 		for _, sampleID := range sampleList {
-			log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, sampleID, jid)
 			*chanMap[sampleID] <- jid
 		}
 	}
 }
 
-func (task *Task) RunTask(info Info, jobName, script string, sampleList []string) {
+func (task *Task) RunTask(info Info, jobName, script, barcode string, sampleList []string) {
 	var hjid = task.WaitFrom(sampleList)
 	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, jobName, hjid)
 	var jid = task.TaskName + "[" + jobName + "]"
 	jid = task.Run(script, hjid, jobName, jid)
-	task.SetEnd(info, jobName, jid, sampleList)
+	task.SetEnd(info, jobName, jid, barcode, sampleList)
 }
 
 func (task *Task) CreateScripts(info Info) {
