@@ -91,10 +91,6 @@ var (
 	sep = regexp.MustCompile(`\s+`)
 )
 
-var throttle chan bool
-
-var taskList = make(map[string]*Task)
-
 func main() {
 	flag.Parse()
 	if *input == "" || *outDir == "" {
@@ -131,6 +127,7 @@ func main() {
 
 	// create taskList
 	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
+	var taskList = make(map[string]*Task)
 
 	for _, item := range cfgInfo {
 		task := createTask(item, *localpath, submitArgs)
@@ -206,17 +203,17 @@ func main() {
 	}
 	taskList["End"] = endTask
 
-	throttle = make(chan bool, *threshold)
+	throttle := make(chan bool, *threshold)
 	// runTask
 	for _, task := range taskList {
-		if task.TaskName == "End" {
+		if task.End {
 			continue
 		}
-		task.RunTask(info, throttle)
+		task.RunTask(info, throttle, taskList)
 	}
 
 	// start run
-	startTask.Start(info)
+	startTask.Start(info, taskList)
 	// wait finish
 	endTask.WaitEnd(info)
 

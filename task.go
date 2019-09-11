@@ -64,7 +64,7 @@ func createTask(cfg map[string]string, local string, submitArgs []string) *Task 
 	return &task
 }
 
-func (task *Task) Start(info Info) {
+func (task *Task) Start(info Info, taskList map[string]*Task) {
 	for taskName, chanMap := range task.TaskToChan {
 		log.Printf("%-7s -> Task[%-7s]", task.TaskName, taskName)
 		nextTask := taskList[taskName]
@@ -173,27 +173,27 @@ func (task *Task) createBarcodeScripts(info Info) {
 	}
 }
 
-func (task *Task) RunTask(info Info, throttle chan bool) {
+func (task *Task) RunTask(info Info, throttle chan bool, taskList map[string]*Task) {
 	switch task.TaskType {
 	case "sample":
 		for sampleID := range info.SampleMap {
-			go task.RunJob(info, sampleID, throttle)
+			go task.RunJob(info, sampleID, throttle, taskList)
 		}
 	case "barcode":
 		for barcode := range info.BarcodeMap {
-			go task.RunJob(info, barcode, throttle)
+			go task.RunJob(info, barcode, throttle, taskList)
 		}
 	case "batch":
-		go task.RunJob(info, "batch", throttle)
+		go task.RunJob(info, "batch", throttle, taskList)
 	}
 }
 
-func (task *Task) RunJob(info Info, jobName string, throttle chan bool) {
+func (task *Task) RunJob(info Info, jobName string, throttle chan bool, taskList map[string]*Task) {
 	var hjid = task.WaitFrom(info, jobName)
 	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, jobName, hjid)
 	var jid = task.TaskName + "[" + jobName + "]"
 	jid = task.RunScript(jobName, hjid, jid, throttle)
-	task.SetEnd(info, jid, jobName)
+	task.SetEnd(info, jid, jobName, taskList)
 }
 
 func (task *Task) RunScript(jobName, depJID, jid string, throttle chan bool) string {
@@ -272,7 +272,7 @@ func (task *Task) WaitFrom(info Info, jobName string) string {
 	return strings.Join(jid, ",")
 }
 
-func (task *Task) SetEnd(info Info, jid, jobName string) {
+func (task *Task) SetEnd(info Info, jid, jobName string, taskList map[string]*Task) {
 	for nextTask, chanMap := range task.TaskToChan {
 		_, ok := taskList[nextTask]
 		if !ok {
