@@ -316,6 +316,51 @@ func (task *Task) SetBarcodeEnd(info Info, jid, barcode string) {
 	}
 }
 
+func (task *Task) RunSampleTask(info Info, sampleID string) {
+	var hjid = task.WaitSampleFrom(sampleID)
+	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, sampleID, hjid)
+	var jid = task.TaskName + "[" + sampleID + "]"
+	jid = task.Run(task.Scripts[sampleID], hjid, sampleID, jid)
+	task.SetSampleEnd(info, jid, sampleID)
+}
+
+func (task *Task) WaitSampleFrom(sampleID string) string {
+	var hjid = make(map[string]bool)
+	for _, fromTask := range task.TaskFrom {
+		ch := fromTask.TaskToChan[task.TaskName][sampleID]
+		jid := <-*ch
+		if jid != "" {
+			hjid[jid] = true
+		}
+	}
+	var jid []string
+	for id := range hjid {
+		jid = append(jid, id)
+	}
+	return strings.Join(jid, ",")
+}
+
+func (task *Task) SetSampleEnd(info Info, jid, sampleID string) {
+	for nextTask, chanMap := range task.TaskToChan {
+		_, ok := taskList[nextTask]
+		if !ok {
+			log.Fatalf("can not find nextTask:%s of task:%+v", nextTask, task)
+		}
+		var router = task.TaskType + "->" + taskList[nextTask].TaskType
+		switch router {
+		case "sample->batch":
+			log.Printf("Task[%-7s:%s] -> {%s} -> Task[%-7s:%s]", task.TaskName, sampleID, jid, nextTask, "batch")
+			*chanMap[sampleID] <- jid
+		case "sample->barcode":
+			log.Printf("Task[%-7s:%s] -> {%s} -> Task[%-7s:%s]", task.TaskName, sampleID, jid, nextTask, info.SampleMap[sampleID].barcode)
+			*chanMap[sampleID] <- jid
+		case "sample->sample":
+			log.Printf("Task[%-7s:%s] -> {%s} -> Task[%-7s:%s]", task.TaskName, sampleID, jid, nextTask, sampleID)
+			*chanMap[sampleID] <- jid
+		}
+	}
+}
+
 func (task *Task) CreateScripts(info Info) {
 	switch task.TaskType {
 	case "sample":

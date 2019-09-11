@@ -290,8 +290,7 @@ func main() {
 		switch task.TaskType {
 		case "sample":
 			for sampleID := range info.SampleMap {
-				//go task.RunSampleTask(sampleID)
-				go task.RunTask(info, sampleID, task.Scripts[sampleID], "", []string{sampleID})
+				go task.RunSampleTask(info, sampleID)
 			}
 		case "batch":
 			go task.RunBatchTask(info)
