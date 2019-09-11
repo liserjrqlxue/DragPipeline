@@ -280,9 +280,13 @@ func main() {
 			item.TaskToChan[endTask.TaskName] = sampleListChan
 		}
 	}
+	taskList["End"] = endTask
 
 	// runTask
 	for _, task := range taskList {
+		if task.TaskName == "End" {
+			continue
+		}
 		switch task.TaskType {
 		case "sample":
 			for sampleID := range info.SampleMap {
@@ -292,13 +296,8 @@ func main() {
 		case "batch":
 			go task.RunBatchTask(info)
 		case "barcode":
-			for barcode, barcodeInfo := range info.BarcodeMap {
-				//go task.RunBarcodeTask(barcode,info)
-				var sampleList []string
-				for sampleID := range barcodeInfo.samples {
-					sampleList = append(sampleList, sampleID)
-				}
-				go task.RunTask(info, barcode, task.BarcodeScripts[barcode], barcode, barcodeInfo.sampleList)
+			for barcode := range info.BarcodeMap {
+				go task.RunBarcodeTask(info, barcode)
 			}
 		}
 	}
