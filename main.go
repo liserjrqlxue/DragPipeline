@@ -287,18 +287,7 @@ func main() {
 		if task.TaskName == "End" {
 			continue
 		}
-		switch task.TaskType {
-		case "sample":
-			for sampleID := range info.SampleMap {
-				go task.RunSampleTask(info, sampleID)
-			}
-		case "batch":
-			go task.RunBatchTask(info)
-		case "barcode":
-			for barcode := range info.BarcodeMap {
-				go task.RunBarcodeTask(info, barcode)
-			}
-		}
+		task.RunTask(info)
 	}
 
 	// start run

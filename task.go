@@ -109,24 +109,6 @@ func (task *Task) WaitEnd() {
 	}
 }
 
-func (task *Task) WaitFrom(sampleIDs []string) string {
-	var hjid = make(map[string]bool)
-	for _, fromTask := range task.TaskFrom {
-		for _, sampleID := range sampleIDs {
-			ch := fromTask.TaskToChan[task.TaskName][sampleID]
-			jid := <-*ch
-			if jid != "" {
-				hjid[jid] = true
-			}
-		}
-	}
-	var jid []string
-	for id := range hjid {
-		jid = append(jid, id)
-	}
-	return strings.Join(jid, ",")
-}
-
 func (task *Task) Run(script, hjid, jobName, jid string) string {
 	if simple_util.FileExists(script + ".complete") {
 		log.Printf("skip complete script:%s", script)
@@ -146,35 +128,6 @@ func (task *Task) Run(script, hjid, jobName, jid string) string {
 		<-throttle
 	}
 	return jid
-}
-
-func (task *Task) SetEnd(info Info, jobName, jid, barcode string, sampleList []string) {
-	for _, chanMap := range task.TaskToChan {
-		var router = task.TaskType
-		switch router {
-		case "batch":
-			log.Printf("Task[%-7s:%s] -> {%s}}", task.TaskName, "batch", jid)
-			*chanMap["batch"] <- jid
-		case "barcode":
-			log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, barcode, jid)
-			*chanMap[barcode] <- jid
-		case "sample":
-			for _, sampleID := range sampleList {
-				log.Printf("Task[%-7s:%s] -> {%s}", task.TaskName, sampleID, jid)
-			}
-		}
-		for _, sampleID := range sampleList {
-			*chanMap[sampleID] <- jid
-		}
-	}
-}
-
-func (task *Task) RunTask(info Info, jobName, script, barcode string, sampleList []string) {
-	var hjid = task.WaitFrom(sampleList)
-	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, jobName, hjid)
-	var jid = task.TaskName + "[" + jobName + "]"
-	jid = task.Run(script, hjid, jobName, jid)
-	task.SetEnd(info, jobName, jid, barcode, sampleList)
 }
 
 func (task *Task) RunBatchTask(info Info) {
@@ -422,5 +375,20 @@ func (task *Task) createBarcodeScripts(info Info) {
 			}
 		}
 		createShell(script, task.TaskScript, appendArgs...)
+	}
+}
+
+func (task *Task) RunTask(info Info) {
+	switch task.TaskType {
+	case "sample":
+		for sampleID := range info.SampleMap {
+			go task.RunSampleTask(info, sampleID)
+		}
+	case "batch":
+		go task.RunBatchTask(info)
+	case "barcode":
+		for barcode := range info.BarcodeMap {
+			go task.RunBarcodeTask(info, barcode)
+		}
 	}
 }
