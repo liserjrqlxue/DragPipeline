@@ -63,7 +63,7 @@ func main() {
 	flag.Parse()
 	if *input == "" || *fq1 == "" || *fq2 == "" {
 		flag.Usage()
-		log.Printf("-list,-fq1,-fq2 required!")
+		log.Printf("-input,-fq1,-fq2 required!")
 		os.Exit(0)
 	}
 

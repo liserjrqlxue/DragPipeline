@@ -103,6 +103,10 @@ func (task *Task) WaitFrom(sampleIDs []string) string {
 }
 
 func (task *Task) Run(script, hjid, jobName, jid string) string {
+	if simple_util.FileExists(script + ".complete") {
+		log.Printf("skip complete script:%s", script)
+		return ""
+	}
 	switch *mode {
 	case "sge":
 		jid = simple_util.SGEsubmit([]string{script}, hjid, task.submitArgs)
