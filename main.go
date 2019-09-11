@@ -91,76 +91,9 @@ var (
 	sep = regexp.MustCompile(`\s+`)
 )
 
-type Info struct {
-	SampleMap  map[string]*Sample
-	BarcodeMap map[string]*Barcode
-}
-
-type Barcode struct {
-	barcode string
-	list    string
-	fq1     string
-	fq2     string
-	samples map[string]*Sample
-}
-
-type Sample struct {
-	sampleID  string
-	sampleNum string
-	barcode   string
-	primer    string
-	info      map[string]string
-}
-
-func parseInput(input, outDir string) (info Info) {
-	info = Info{
-		SampleMap:  make(map[string]*Sample),
-		BarcodeMap: make(map[string]*Barcode),
-	}
-	inputInfo, _ := simple_util.File2MapArray(input, "\t", nil)
-	for _, item := range inputInfo {
-		sampleID := item["sampleID"]
-		barcode := item["barcode"]
-
-		fq1 := item["fq1"]
-		fq2 := item["fq2"]
-		sampleNum := item["sampleNum"]
-		primer := item["primer"]
-
-		sampleInfo, ok := info.SampleMap[sampleID]
-		if !ok {
-			sampleInfo = &Sample{
-				sampleID:  sampleID,
-				sampleNum: sampleNum,
-				barcode:   barcode,
-				primer:    primer,
-				info:      item,
-			}
-			info.SampleMap[sampleID] = sampleInfo
-		} else {
-			log.Fatal("dup sampleID:", sampleID)
-		}
-
-		barcodeInfo, ok := info.BarcodeMap[barcode]
-		if !ok {
-			barcodeInfo = &Barcode{
-				barcode: barcode,
-				list:    filepath.Join(outDir, "barcode", "barcode."+barcode+".list"),
-				fq1:     fq1,
-				fq2:     fq2,
-				samples: make(map[string]*Sample),
-			}
-			info.BarcodeMap[barcode] = barcodeInfo
-		}
-		barcodeInfo.samples[sampleID] = sampleInfo
-	}
-	return
-}
-
 var throttle chan bool
 
 var taskList = make(map[string]*Task)
-var info Info
 
 func main() {
 	flag.Parse()
@@ -181,8 +114,6 @@ func main() {
 		log.Printf("Log file:%v\n", *logFile)
 	}
 
-	throttle = make(chan bool, *threshold)
-
 	var submitArgs []string
 	if *cwd {
 		submitArgs = append(submitArgs, "-cwd")
@@ -193,7 +124,8 @@ func main() {
 	if *proj != "" {
 		submitArgs = append(submitArgs, "-P", *proj)
 	}
-	info = parseInput(*input, *outDir)
+
+	info := parseInput(*input, *outDir)
 	createDir(*outDir, batchDirList, sampleDirList, info)
 	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 
@@ -202,6 +134,10 @@ func main() {
 
 	for _, item := range cfgInfo {
 		task := createTask(item, *localpath, submitArgs)
+		_, ok := taskList[task.TaskName]
+		if ok {
+			log.Fatal("dup TaskName:", task.TaskName)
+		}
 		taskList[task.TaskName] = task
 		// create scripts
 		task.CreateScripts(info)
@@ -270,18 +206,19 @@ func main() {
 	}
 	taskList["End"] = endTask
 
+	throttle = make(chan bool, *threshold)
 	// runTask
 	for _, task := range taskList {
 		if task.TaskName == "End" {
 			continue
 		}
-		task.RunTask(info)
+		task.RunTask(info, throttle)
 	}
 
 	// start run
-	startTask.Start()
+	startTask.Start(info)
 	// wait finish
-	endTask.WaitEnd()
+	endTask.WaitEnd(info)
 
 	for i := 0; i < *threshold; i++ {
 		throttle <- true

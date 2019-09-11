@@ -64,7 +64,7 @@ func createTask(cfg map[string]string, local string, submitArgs []string) *Task 
 	return &task
 }
 
-func (task *Task) Start() {
+func (task *Task) Start(info Info) {
 	for taskName, chanMap := range task.TaskToChan {
 		log.Printf("%-7s -> Task[%-7s]", task.TaskName, taskName)
 		nextTask := taskList[taskName]
@@ -89,7 +89,7 @@ func (task *Task) Start() {
 	}
 }
 
-func (task *Task) WaitEnd() {
+func (task *Task) WaitEnd(info Info) {
 	for _, fromTask := range task.TaskFrom {
 		var router = fromTask.TaskType + "->" + task.TaskType
 		chanMap := fromTask.TaskToChan[task.TaskName]
@@ -107,27 +107,6 @@ func (task *Task) WaitEnd() {
 		}
 		log.Printf("%-7s <- Task[%-7s]", task.TaskName, fromTask.TaskName)
 	}
-}
-
-func (task *Task) Run(script, hjid, jobName, jid string) string {
-	if simple_util.FileExists(script + ".complete") {
-		log.Printf("skip complete script:%s", script)
-		return ""
-	}
-	switch *mode {
-	case "sge":
-		jid = simple_util.SGEsubmit([]string{script}, hjid, task.submitArgs)
-	default:
-		throttle <- true
-		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, jobName, script)
-		if *dryRun {
-			time.Sleep(10 * time.Second)
-		} else {
-			simple_util.CheckErr(simple_util.RunCmd("bash", script))
-		}
-		<-throttle
-	}
-	return jid
 }
 
 func (task *Task) CreateScripts(info Info) {
@@ -194,30 +173,30 @@ func (task *Task) createBarcodeScripts(info Info) {
 	}
 }
 
-func (task *Task) RunTask(info Info) {
+func (task *Task) RunTask(info Info, throttle chan bool) {
 	switch task.TaskType {
 	case "sample":
 		for sampleID := range info.SampleMap {
-			go task.RunJob(info, sampleID)
+			go task.RunJob(info, sampleID, throttle)
 		}
 	case "barcode":
 		for barcode := range info.BarcodeMap {
-			go task.RunJob(info, barcode)
+			go task.RunJob(info, barcode, throttle)
 		}
 	case "batch":
-		go task.RunJob(info, "batch")
+		go task.RunJob(info, "batch", throttle)
 	}
 }
 
-func (task *Task) RunJob(info Info, jobName string) {
+func (task *Task) RunJob(info Info, jobName string, throttle chan bool) {
 	var hjid = task.WaitFrom(info, jobName)
 	log.Printf("Task[%-7s:%s] <- {%s}", task.TaskName, jobName, hjid)
 	var jid = task.TaskName + "[" + jobName + "]"
-	jid = task.RunScript(jobName, hjid, jid)
+	jid = task.RunScript(jobName, hjid, jid, throttle)
 	task.SetEnd(info, jid, jobName)
 }
 
-func (task *Task) RunScript(jobName, hjid, jid string) string {
+func (task *Task) RunScript(jobName, depJID, jid string, throttle chan bool) string {
 	var script string
 	switch task.TaskType {
 	case "sample":
@@ -233,7 +212,7 @@ func (task *Task) RunScript(jobName, hjid, jid string) string {
 	}
 	switch *mode {
 	case "sge":
-		jid = simple_util.SGEsubmit([]string{script}, hjid, task.submitArgs)
+		jid = simple_util.SGEsubmit([]string{script}, depJID, task.submitArgs)
 	default:
 		throttle <- true
 		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, jobName, script)
