@@ -92,6 +92,7 @@ var (
 )
 
 func main() {
+	log.Println("args:", os.Args)
 	flag.Parse()
 	if *input == "" || *outDir == "" {
 		flag.Usage()
@@ -124,6 +125,8 @@ func main() {
 	info := parseInput(*input, *outDir)
 	createDir(*outDir, batchDirList, sampleDirList, info)
 	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
+	// create outDir/step2.sh and write args to it
+	simple_util.Array2File(filepath.Join(*outDir, "step2.sh"), " ", os.Args)
 
 	// create taskList
 	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
