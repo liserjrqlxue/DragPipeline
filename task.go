@@ -212,7 +212,7 @@ func (task *Task) RunScript(jobName, depJID, jid string, throttle chan bool) str
 	}
 	switch *mode {
 	case "sge":
-		jid = simple_util.SGEsubmit([]string{script}, depJID, task.submitArgs)
+		jid = simple_util.Submit(script, depJID, task.submitArgs, nil)
 	default:
 		throttle <- true
 		log.Printf("Run Task[%-7s:%s]:%s", task.TaskName, jobName, script)
