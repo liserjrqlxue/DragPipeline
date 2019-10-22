@@ -16,6 +16,17 @@ var (
 	exPath = filepath.Dir(ex)
 )
 
+// version
+var buildStamp, gitHash, goVersion string
+
+func logVersion() {
+	if gitHash != "" || buildStamp != "" || goVersion != "" {
+		log.Printf("Git Commit Hash: %s\n", gitHash)
+		log.Printf("UTC Build Time : %s\n", buildStamp)
+		log.Printf("Golang Version : %s\n", goVersion)
+	}
+}
+
 var (
 	input = flag.String(
 		"input",
@@ -92,6 +103,7 @@ var (
 )
 
 func main() {
+	logVersion()
 	log.Println("args:", os.Args)
 	flag.Parse()
 	if *input == "" || *outDir == "" {
