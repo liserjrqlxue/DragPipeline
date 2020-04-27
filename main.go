@@ -2,7 +2,12 @@ package main
 
 import (
 	"flag"
-	"github.com/liserjrqlxue/simple-util"
+	"github.com/liserjrqlxue/goUtil/jsonUtil"
+	"github.com/liserjrqlxue/goUtil/osUtil"
+	"github.com/liserjrqlxue/goUtil/simpleUtil"
+	"github.com/liserjrqlxue/goUtil/textUtil"
+	simple_util "github.com/liserjrqlxue/simple-util"
+
 	"log"
 	"os"
 	"path/filepath"
@@ -51,7 +56,7 @@ var (
 	mode = flag.String(
 		"mode",
 		"local",
-		"run mode:[local|sge]",
+		"run mode:[local|sge|im]",
 	)
 	cwd = flag.Bool(
 		"cwd",
@@ -115,10 +120,9 @@ func main() {
 	log.SetFlags(log.Ldate | log.Ltime)
 	if *logFile != "" {
 		//*logFile = filepath.Join(*outDir, "log")
-		simple_util.CheckErr(os.MkdirAll(filepath.Dir(*logFile), 0755))
-		logF, err := os.Create(*logFile)
-		simple_util.CheckErr(err)
-		defer simple_util.DeferClose(logF)
+		simpleUtil.CheckErr(os.MkdirAll(filepath.Dir(*logFile), 0755))
+		var logF = osUtil.Create(*logFile)
+		defer simpleUtil.DeferClose(logF)
 		log.SetOutput(logF)
 		log.Printf("Log file:%v\n", *logFile)
 	}
@@ -136,12 +140,16 @@ func main() {
 
 	info := parseInput(*input, *outDir)
 	createDir(*outDir, batchDirList, sampleDirList, info)
-	simple_util.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
+	simpleUtil.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 	// create outDir/step2.sh and write args to it
 	simple_util.Array2File(filepath.Join(*outDir, "step2.sh"), " ", os.Args)
 
+	var infoMap = ParseInfoIM(*input)
+	var allSteps = ParseStepCfg(*cfg, infoMap)
+	simpleUtil.CheckErr(jsonUtil.Json2File(filepath.Join(*outDir, "allSteps.json"), allSteps))
+
 	// create taskList
-	cfgInfo, _ := simple_util.File2MapArray(*cfg, "\t", nil)
+	cfgInfo, _ := textUtil.File2MapArray(*cfg, "\t", nil)
 	var taskList = make(map[string]*Task)
 
 	for _, item := range cfgInfo {
