@@ -147,7 +147,7 @@ func main() {
 	createDir(*outDir, batchDirList, sampleDirList, info)
 	simpleUtil.CheckErr(simple_util.CopyFile(filepath.Join(*outDir, "input.list"), *input))
 	// create outDir/step2.sh and write args to it
-	simple_util.Array2File(filepath.Join(*outDir, "step2.sh"), " ", os.Args)
+	simple_util.Array2File(filepath.Join(*outDir, "run.sh"), " ", os.Args)
 
 	var infoMap = ParseInfoIM(*input)
 	var allSteps = ParseStepCfg(*cfg, infoMap)
