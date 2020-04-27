@@ -45,6 +45,9 @@ func ParseStepCfg(cfg string, infoMap map[string]libIM.Info) (allSteps []*libIM.
 		}
 	}
 	libIM.LinkSteps(stepMap)
-	stepMap["first"].First = 1
+	var step, ok = stepMap[*first]
+	if ok {
+		step.First = 1
+	}
 	return
 }

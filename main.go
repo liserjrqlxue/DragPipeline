@@ -78,6 +78,11 @@ var (
 		12,
 		"threshold limit for local mode",
 	)
+	first = flag.String(
+		"first",
+		"first",
+		"first step",
+	)
 	logFile = flag.String(
 		"log",
 		"",
