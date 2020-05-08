@@ -6,6 +6,7 @@ import (
 	"github.com/liserjrqlxue/goUtil/osUtil"
 	"github.com/liserjrqlxue/goUtil/simpleUtil"
 	"github.com/liserjrqlxue/goUtil/textUtil"
+	"github.com/liserjrqlxue/libIM"
 	simple_util "github.com/liserjrqlxue/simple-util"
 
 	"log"
@@ -93,6 +94,11 @@ var (
 		false,
 		"dry run for local",
 	)
+	lane = flag.String(
+		"lane",
+		"",
+		"lane info",
+	)
 )
 
 var batchDirList = []string{
@@ -120,6 +126,9 @@ func main() {
 		flag.Usage()
 		log.Printf("-input and -outdir required")
 		os.Exit(0)
+	}
+	if *lane != "" {
+		libIM.LaneInput = *lane
 	}
 
 	log.SetFlags(log.Ldate | log.Ltime)

@@ -114,7 +114,7 @@ func (task *Task) CreateScripts(info Info) {
 	case "sample":
 		task.createSampleScripts(info)
 	case "batch":
-		task.createBatchScripts(info)
+		task.createBatchScripts()
 	case "barcode":
 		task.createBarcodeScripts(info)
 	}
@@ -136,7 +136,7 @@ func (task *Task) createSampleScripts(info Info) {
 	}
 }
 
-func (task *Task) createBatchScripts(info Info) {
+func (task *Task) createBatchScripts() {
 	script := filepath.Join(*outDir, "shell", task.TaskName+".sh")
 	task.BatchScript = script
 	var appendArgs []string
