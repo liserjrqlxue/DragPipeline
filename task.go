@@ -145,6 +145,8 @@ func (task *Task) createBatchScripts() {
 		switch arg {
 		case "list":
 			appendArgs = append(appendArgs, filepath.Join(*outDir, "input.list"))
+		case "laneInput":
+			appendArgs = append(appendArgs, *lane)
 		default:
 		}
 	}
