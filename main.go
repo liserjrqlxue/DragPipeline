@@ -161,6 +161,9 @@ func main() {
 	var infoMap = ParseInfoIM(*input)
 	var allSteps = ParseStepCfg(*cfg, infoMap)
 	simpleUtil.CheckErr(jsonUtil.Json2File(filepath.Join(*outDir, "allSteps.json"), allSteps))
+	if *mode == "im" {
+		return
+	}
 
 	// create taskList
 	cfgInfo, _ := textUtil.File2MapArray(*cfg, "\t", nil)
