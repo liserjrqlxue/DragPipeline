@@ -7,5 +7,5 @@ require (
 	github.com/liserjrqlxue/goUtil v0.0.15
 	github.com/liserjrqlxue/libIM v0.0.0-20200427063017-a5926004040e
 	github.com/liserjrqlxue/simple-util v1.0.1
-	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0 // indirect
+	golang.org/x/net v0.7.0 // indirect
 )
